@@ -3,144 +3,195 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>NSAA Football TV Boards</title>
+  <title>Local HS Football</title>
+  <!-- Auto-refresh every 10 minutes for TV screens -->
   <meta http-equiv="refresh" content="600">
+
   <style>
-    :root { --bg: #0b0e13; --card:#121722; --ink:#e7edf6; --muted:#9fb0c2; --accent:#4fd1c5; }
-    html, body { height:100%; margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background:#0b0e13; color:var(--ink);}
+    :root { --bg:#0b0e13; --card:#121722; --ink:#e7edf6; --muted:#9fb0c2; --accent:#4fd1c5; }
+    html, body { height:100%; margin:0; background:var(--bg); color:var(--ink);
+                 font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
     .wrap { display:flex; flex-direction:column; min-height:100%; }
     header { display:flex; justify-content:space-between; align-items:center; padding:20px 28px; }
-    .title { font-weight:700; letter-spacing:.3px; font-size:28px; }
+    .title { font-weight:800; letter-spacing:.3px; font-size:32px; }
     .muted { color:var(--muted); }
     .grid { display:grid; gap:20px; padding:0 28px 28px; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
-    .card { background:var(--card); border-radius:18px; padding:18px 18px 16px; box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px rgba(255,255,255,.05); }
-    .chip { display:inline-block; padding:4px 10px; border-radius:999px; background:#0f1624; color:var(--muted); font-size:12px; border:1px solid rgba(255,255,255,.06); }
-    .team { font-size:22px; font-weight:700; margin:10px 0 4px; }
+    .card { background:var(--card); border-radius:18px; padding:18px 18px 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px rgba(255,255,255,.05); }
+    .chip { display:inline-block; padding:4px 10px; border-radius:999px; background:#0f1624; color:var(--muted);
+            font-size:12px; border:1px solid rgba(255,255,255,.06); }
+    .team { font-size:22px; font-weight:800; margin:10px 0 4px; }
     .sub { font-size:13px; color:var(--muted); margin-bottom:10px; }
     .table { width:100%; border-collapse:collapse; font-size:14px; }
     .table th, .table td { padding:6px 0; border-bottom:1px solid rgba(255,255,255,.06); }
     .table th { text-align:left; color:var(--muted); font-weight:600; font-size:12px; letter-spacing:.3px; }
-    .accent { color:var(--accent); }
-    .hint { color:#94a3b8; font-size:14px; margin-left:12px;}
     footer { text-align:center; color:var(--muted); font-size:12px; padding:14px 0 22px; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header>
-      <div class="title">NSAA Football — <span id="officeLabel" class="accent"></span> <span class="hint" id="teamCount"></span></div>
+      <div class="title">Local HS Football</div>
       <div class="muted" id="clock">--:--</div>
     </header>
+
     <div class="grid" id="grid"></div>
-    <footer>Data scraped daily from NSAA class pages. Updated <span id="updated">…</span>.</footer>
+
+    <footer>
+      Data scraped daily from NSAA class pages. Updated <span id="updated">…</span>.
+    </footer>
   </div>
+
   <script>
-  const params = new URLSearchParams(location.search);
-  const office = params.get("office") || "mead-office";
-  const elGrid = document.getElementById("grid");
-  const elOfficeLabel = document.getElementById("officeLabel");
-  const elUpdated = document.getElementById("updated");
-  const elTeamCount = document.getElementById("teamCount");
+    // --- URL config: use ?office=<key> to choose which teams to show from teams.json
+    const params = new URLSearchParams(location.search);
+    const office = params.get("office") || "mead-office";
 
-  function norm(s){ return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,""); }
+    const elGrid    = document.getElementById("grid");
+    const elUpdated = document.getElementById("updated");
 
-  async function loadJSON(url){
-    const res = await fetch(url, {cache:"no-cache"});
-    if(!res.ok) throw new Error("Failed "+url);
-    return res.json();
-  }
-
-  function bestTeamRow(rows){
-    return rows.sort((a,b) => Object.keys(b).length - Object.keys(a).length)[0];
-  }
-
-  function buildCard(row){
-    const team = row._team || "Unknown";
-    const cls  = row._class || "?";
-    const keys = Object.keys(row).filter(k=>!k.startsWith("_"));
-    const interesting = keys.slice(0, 6);
-    const rowsHtml = interesting.map(k => `<tr><th>${k}</th><td>${row[k]}</td></tr>`).join("");
-    const div = document.createElement("div");
-    div.className = "card";
-    div.innerHTML = `
-      <div class="chip">Class ${cls}</div>
-      <div class="team">${team}</div>
-      <div class="sub">Snapshot from NSAA tables</div>
-      <table class="table">${rowsHtml}</table>
-    `;
-    return div;
-  }
-
-  function startClock(){
-    function tick(){
-      const d = new Date();
-      const hh = String(d.getHours()).padStart(2,"0");
-      const mm = String(d.getMinutes()).padStart(2,"0");
-      document.getElementById("clock").textContent = `${hh}:${mm}`;
-    }
-    tick(); setInterval(tick, 15000);
-  }
-
-  // Try to suggest possible matches if exact key isn't found
-  function suggestMatches(teamName, allKeys){
-    const t = norm(teamName);
-    const suggestions = [];
-    for(const k of allKeys){
-      if(k.includes(t) || t.includes(k)) suggestions.push(k);
-      if(suggestions.length >= 5) break;
-    }
-    return suggestions;
-  }
-
-  (async function init(){
-    startClock();
-    elOfficeLabel.textContent = office;
-
-    const [teamsCfg, data] = await Promise.all([
-      loadJSON("./teams.json"),
-      loadJSON("./data/football.json").catch(()=>({updated:0, by_team:{}}))
-    ]);
-
-    // show updated time using the epoch field from slim JSON
-    if (data.updated) {
-      const d = new Date(data.updated * 1000);
-      elUpdated.textContent = d.toLocaleString();
-    } else {
-      elUpdated.textContent = "(no data yet)";
-    }
-
-    const wanted = teamsCfg[office] || [];
-    elTeamCount.textContent = wanted.length ? `(${wanted.length} team${wanted.length>1?"s":""})` : "(no teams set)";
-
-    if(!wanted.length){
-      elGrid.innerHTML = `<div class="muted">Add teams for "${office}" in <code>teams.json</code>.</div>`;
-      return;
-    }
-
-    const allKeys = Object.keys(data.by_team || {});
-    for(const team of wanted){
-      const key = norm(team);
-      const rows = (data.by_team && data.by_team[key]) || [];
-
-      if(rows.length === 0){
-        // Try to find close matches and show them on the card to help you fix teams.json
-        const maybe = suggestMatches(team, allKeys);
-        const hint = maybe.length ? `<div class="sub">Did you mean: <span class="accent">${maybe.join(", ")}</span>?</div>` : `<div class="sub">No similar names found in JSON.</div>`;
-
-        const placeholder = document.createElement("div");
-        placeholder.className = "card";
-        placeholder.innerHTML = `
-          <div class="chip">No Data</div>
-          <div class="team">${team}</div>
-          <div class="sub">No match found yet. Check spelling in <code>teams.json</code>.</div>
-          ${hint}
-        `;
-        elGrid.appendChild(placeholder);
-      } else {
-        elGrid.appendChild(buildCard(bestTeamRow(rows)));
+    function startClock(){
+      function tick(){
+        const d = new Date();
+        const hh = String(d.getHours()).padStart(2,"0");
+        const mm = String(d.getMinutes()).padStart(2,"0");
+        document.getElementById("clock").textContent = `${hh}:${mm}`;
       }
+      tick(); setInterval(tick, 15000);
     }
-  })();
-</script>
+
+    function norm(s){ return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,""); }
+
+    async function loadJSON(url){
+      const r = await fetch(url, {cache:"no-cache"});
+      if(!r.ok) throw new Error("Failed to load " + url);
+      return r.json();
+    }
+
+    // ---- Helpers for picking Last/Next games ----
+    function parseDateMMDDYY(s){
+      const m = /^(\d{2})\/(\d{2})\/(\d{2})$/.exec((s||"").trim());
+      if(!m) return null;
+      const [, mm, dd, yy] = m;
+      const yyyy = (+yy < 70) ? 2000 + (+yy) : 1900 + (+yy);
+      return new Date(yyyy, (+mm)-1, (+dd));
+    }
+
+    function isCompleted(row){
+      const score = String(row.Score||"").trim();
+      const wl    = String(row["W/L"]||"").trim().toUpperCase();
+      if (/\d/.test(score)) return true;               // any digit in score
+      if (wl === "W" || wl === "L" || wl === "T") return true;
+      return false;
+    }
+
+    function splitLastAndNext(rows){
+      const items = rows.map(r => ({ r, d: parseDateMMDDYY(r.Date), done: isCompleted(r) }))
+                        .filter(x => x.d && !isNaN(x.d))
+                        .sort((a,b)=> a.d - b.d);
+
+      const today = new Date(); today.setHours(0,0,0,0);
+
+      const pastDone = items.filter(x => x.done && x.d <= today);
+      const last = pastDone.length ? pastDone[pastDone.length-1].r : null;
+
+      const next = (items.find(x => !x.done && x.d >= today) || {}).r || null;
+
+      if (!last) {
+        const anyDone = items.filter(x => x.done);
+        if (anyDone.length) return { last: anyDone[anyDone.length-1].r, next };
+      }
+      return { last, next };
+    }
+
+    function currentRecord(rows){
+      const toDate = d => { const t=new Date(d); t.setHours(0,0,0,0); return t; };
+      const today = toDate(new Date());
+      const items = rows
+        .map(r => ({ r, d: parseDateMMDDYY(r.Date), done: isCompleted(r) }))
+        .filter(x => x.d && !isNaN(x.d))
+        .sort((a,b)=> a.d - b.d);
+
+      const pastDone = items.filter(x => x.done && x.d <= today);
+      let rec = pastDone.length ? String(pastDone[pastDone.length-1].r["W-L"]||"").trim() : "";
+
+      if (!rec) rec = String((items[0]?.r["W-L"]) || "").trim();
+      if (!rec || rec === "-") rec = "0-0";
+      return rec;
+    }
+
+    // ---- Card renderer: keeps a Class chip at top; under team shows "Class X · Record Y-Z" ----
+    function buildCardTwo(rowLast, rowNext, record){
+      const rowAny = rowLast || rowNext || {};
+      const team = rowAny._team || "Unknown";
+      const cls  = rowAny._class || "?";
+
+      function rowTable(r){
+        if(!r) return '<div class="sub">—</div>';
+        const order = ["Date","Opponent","Class","W-L","W/L","Score","Div","Points","Site","Time","Home/Away"];
+        const keys = order.filter(k => Object.prototype.hasOwnProperty.call(r,k));
+        const rowsHtml = keys.map(k => `<tr><th>${k}</th><td>${r[k]}</td></tr>`).join("");
+        return `<table class="table">${rowsHtml}</table>`;
+      }
+
+      const div = document.createElement("div");
+      div.className = "card";
+      div.innerHTML = `
+        <div class="chip">Class ${cls}</div>
+        <div class="team">${team}</div>
+        <div class="sub">Class ${cls} · Record ${record}</div>
+
+        <div class="sub" style="margin-top:12px;font-weight:600;">Last Game</div>
+        ${rowTable(rowLast)}
+        ${!rowLast ? `<div class="sub">No results yet.</div>` : ""}
+
+        <div class="sub" style="margin-top:12px;font-weight:600;">Next Game</div>
+        ${rowTable(rowNext)}
+        ${!rowNext ? `<div class="sub">No future games scheduled.</div>` : ""}
+      `;
+      return div;
+    }
+
+    // ---- Boot ----
+    (async function init(){
+      startClock();
+
+      const [teamsCfg, data] = await Promise.all([
+        loadJSON("./teams.json"),
+        loadJSON("./data/football.json").catch(()=>({updated:0, by_team:{}}))
+      ]);
+
+      if (data.updated) {
+        elUpdated.textContent = new Date(data.updated*1000).toLocaleString();
+      } else {
+        elUpdated.textContent = "(no data yet)";
+      }
+
+      const wanted = teamsCfg[office] || [];
+      if(!wanted.length){
+        elGrid.innerHTML = `<div class="muted">Add teams for "${office}" in <code>teams.json</code>.</div>`;
+        return;
+      }
+
+      for(const team of wanted){
+        const key = norm(team);
+        const rows = (data.by_team && data.by_team[key]) || [];
+        if(!rows.length){
+          const placeholder = document.createElement("div");
+          placeholder.className = "card";
+          placeholder.innerHTML = `
+            <div class="chip">No Data</div>
+            <div class="team">${team}</div>
+            <div class="sub">No match found yet. Make sure the name matches NSAA's caption (without the record).</div>
+          `;
+          elGrid.appendChild(placeholder);
+        } else {
+          const pick = splitLastAndNext(rows);
+          const rec  = currentRecord(rows);
+          elGrid.appendChild(buildCardTwo(pick.last, pick.next, rec));
+        }
+      }
+    })();
+  </script>
 </body>
 </html>
