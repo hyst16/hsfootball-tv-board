@@ -1,7 +1,8 @@
 name: Scrape NSAA -> Build JSON
+
 on:
   schedule:
-    - cron: '15 11 * * *'   # runs daily ~06:15 America/Chicago (GitHub uses UTC)
+    - cron: '15 11 * * *'   # ~06:15 America/Chicago, GitHub uses UTC
   workflow_dispatch:
 
 jobs:
@@ -29,7 +30,8 @@ jobs:
       - name: Run scraper
         run: |
           python scraper/scrape_nsaa.py
-          test -f site/data/football.json
+          # verify the new location (ROOT/data)
+          test -f data/football.json
 
       - name: Commit & push if changed
         run: |
