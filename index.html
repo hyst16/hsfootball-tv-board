@@ -35,54 +35,112 @@
     <footer>Data scraped daily from NSAA class pages. Updated <span id="updated">…</span>.</footer>
   </div>
   <script>
-    const params = new URLSearchParams(location.search);
-    const office = params.get("office") || "mead-office";
-    const elGrid = document.getElementById("grid");
-    const elOfficeLabel = document.getElementById("officeLabel");
-    const elUpdated = document.getElementById("updated");
-    const elTeamCount = document.getElementById("teamCount");
-    function norm(s){ return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,""); }
-    async function loadJSON(url){ const res = await fetch(url, {cache:"no-cache"}); if(!res.ok) throw new Error("Failed "+url); return res.json(); }
-    function bestTeamRow(rows){ return rows.sort((a,b) => Object.keys(b).length - Object.keys(a).length)[0]; }
-    function buildCard(row){
-      const team = row._team_key || "Unknown";
-      const cls  = row._class || "?";
-      const keys = Object.keys(row).filter(k=>!k.startsWith("_"));
-      const interesting = keys.slice(0, 6);
-      const rowsHtml = interesting.map(k => `<tr><th>${k}</th><td>${row[k]}</td></tr>`).join("");
-      const div = document.createElement("div");
-      div.className = "card";
-      div.innerHTML = `<div class="chip">Class ${cls}</div><div class="team">${team}</div><div class="sub">Snapshot from NSAA tables</div><table class="table">${rowsHtml}</table>`;
-      return div;
+  const params = new URLSearchParams(location.search);
+  const office = params.get("office") || "mead-office";
+  const elGrid = document.getElementById("grid");
+  const elOfficeLabel = document.getElementById("officeLabel");
+  const elUpdated = document.getElementById("updated");
+  const elTeamCount = document.getElementById("teamCount");
+
+  function norm(s){ return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,""); }
+
+  async function loadJSON(url){
+    const res = await fetch(url, {cache:"no-cache"});
+    if(!res.ok) throw new Error("Failed "+url);
+    return res.json();
+  }
+
+  function bestTeamRow(rows){
+    return rows.sort((a,b) => Object.keys(b).length - Object.keys(a).length)[0];
+  }
+
+  function buildCard(row){
+    const team = row._team || "Unknown";
+    const cls  = row._class || "?";
+    const keys = Object.keys(row).filter(k=>!k.startsWith("_"));
+    const interesting = keys.slice(0, 6);
+    const rowsHtml = interesting.map(k => `<tr><th>${k}</th><td>${row[k]}</td></tr>`).join("");
+    const div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML = `
+      <div class="chip">Class ${cls}</div>
+      <div class="team">${team}</div>
+      <div class="sub">Snapshot from NSAA tables</div>
+      <table class="table">${rowsHtml}</table>
+    `;
+    return div;
+  }
+
+  function startClock(){
+    function tick(){
+      const d = new Date();
+      const hh = String(d.getHours()).padStart(2,"0");
+      const mm = String(d.getMinutes()).padStart(2,"0");
+      document.getElementById("clock").textContent = `${hh}:${mm}`;
     }
-    function startClock(){
-      function tick(){ const d=new Date(); const hh=String(d.getHours()).padStart(2,"0"); const mm=String(d.getMinutes()).padStart(2,"0"); document.getElementById("clock").textContent = `${hh}:${mm}`; }
-      tick(); setInterval(tick, 15000);
+    tick(); setInterval(tick, 15000);
+  }
+
+  // Try to suggest possible matches if exact key isn't found
+  function suggestMatches(teamName, allKeys){
+    const t = norm(teamName);
+    const suggestions = [];
+    for(const k of allKeys){
+      if(k.includes(t) || t.includes(k)) suggestions.push(k);
+      if(suggestions.length >= 5) break;
     }
-    (async function init(){
-      startClock();
-      elOfficeLabel.textContent = office;
-      const [teamsCfg, data] = await Promise.all([
-        loadJSON("./teams.json"),
-        loadJSON("./data/football.json").catch(()=>({updated_human:"(no data yet)", by_team:{}}))
-      ]);
-      elUpdated.textContent = data.updated_human || "(no data yet)";
-      const wanted = teamsCfg[office] || [];
-      elTeamCount.textContent = wanted.length ? `(${wanted.length} team${wanted.length>1?"s":""})` : "(no teams set)";
-      if(!wanted.length){ elGrid.innerHTML = `<div class="muted">Add teams for "${office}" in <code>teams.json</code>.</div>`; return; }
-      for(const team of wanted){
-        const key = norm(team);
-        const rows = (data.by_team && data.by_team[key]) || [];
-        if(rows.length === 0){
-          const placeholder = document.createElement("div");
-          placeholder.className = "card";
-          placeholder.innerHTML = `<div class="chip">No Data</div><div class="team">${team}</div><div class="sub">No match found yet. Will populate after the next scrape.</div>`;
-          elGrid.appendChild(placeholder);
-        } else {
-          elGrid.appendChild(buildCard(bestTeamRow(rows)));
-        }
+    return suggestions;
+  }
+
+  (async function init(){
+    startClock();
+    elOfficeLabel.textContent = office;
+
+    const [teamsCfg, data] = await Promise.all([
+      loadJSON("./teams.json"),
+      loadJSON("./data/football.json").catch(()=>({updated:0, by_team:{}}))
+    ]);
+
+    // show updated time using the epoch field from slim JSON
+    if (data.updated) {
+      const d = new Date(data.updated * 1000);
+      elUpdated.textContent = d.toLocaleString();
+    } else {
+      elUpdated.textContent = "(no data yet)";
+    }
+
+    const wanted = teamsCfg[office] || [];
+    elTeamCount.textContent = wanted.length ? `(${wanted.length} team${wanted.length>1?"s":""})` : "(no teams set)";
+
+    if(!wanted.length){
+      elGrid.innerHTML = `<div class="muted">Add teams for "${office}" in <code>teams.json</code>.</div>`;
+      return;
+    }
+
+    const allKeys = Object.keys(data.by_team || {});
+    for(const team of wanted){
+      const key = norm(team);
+      const rows = (data.by_team && data.by_team[key]) || [];
+
+      if(rows.length === 0){
+        // Try to find close matches and show them on the card to help you fix teams.json
+        const maybe = suggestMatches(team, allKeys);
+        const hint = maybe.length ? `<div class="sub">Did you mean: <span class="accent">${maybe.join(", ")}</span>?</div>` : `<div class="sub">No similar names found in JSON.</div>`;
+
+        const placeholder = document.createElement("div");
+        placeholder.className = "card";
+        placeholder.innerHTML = `
+          <div class="chip">No Data</div>
+          <div class="team">${team}</div>
+          <div class="sub">No match found yet. Check spelling in <code>teams.json</code>.</div>
+          ${hint}
+        `;
+        elGrid.appendChild(placeholder);
+      } else {
+        elGrid.appendChild(buildCard(bestTeamRow(rows)));
       }
-    })();
-  </script>
+    }
+  })();
+</script>
 </body>
 </html>
