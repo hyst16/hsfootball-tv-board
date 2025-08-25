@@ -7,16 +7,28 @@
   <meta http-equiv="refresh" content="600"><!-- TV auto-refresh every 10m -->
 
   <style>
-    :root { --bg:#0b0e13; --card:#121722; --ink:#e7edf6; --muted:#9fb0c2; --accent:#4fd1c5; }
+    :root {
+      --bg:#0b0e13; --card:#121722; --ink:#e7edf6; --muted:#9fb0c2; --accent:#4fd1c5;
+      --warn:#f59e0b;
+    }
     html, body { height:100%; margin:0; background:var(--bg); color:var(--ink);
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
     .wrap { display:flex; flex-direction:column; min-height:100%; }
-    header { display:flex; justify-content:space-between; align-items:center; padding:20px 28px; }
+    header { display:flex; justify-content:space-between; align-items:center; padding:20px 28px; gap:16px; flex-wrap:wrap; }
     .title { font-weight:800; letter-spacing:.3px; font-size:32px; }
     .muted { color:var(--muted); }
+    .header-right { display:flex; align-items:center; gap:12px; }
+    .rotWrap { width:260px; height:6px; background:rgba(255,255,255,.08); border-radius:999px; overflow:hidden; }
+    .rotBar  { height:100%; width:0%; background:var(--accent); transition: width .1s linear, background-color .2s ease; }
+
     .grid { display:grid; gap:20px; padding:0 28px 28px; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); }
     .card { background:var(--card); border-radius:18px; padding:18px;
       box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px rgba(255,255,255,.05); min-height: 240px; }
+
+    /* Fade transition between pages */
+    .grid.fade-out { opacity:0; transform: translateY(8px); transition: opacity .4s ease, transform .4s ease; }
+    .grid.fade-in  { opacity:1; transform: translateY(0);  transition: opacity .4s ease, transform .4s ease; }
+
     .chip { display:inline-block; padding:4px 10px; border-radius:999px; background:#0f1624; color:var(--muted);
       font-size:12px; border:1px solid rgba(255,255,255,.06); }
     .team { font-size:24px; font-weight:800; margin:10px 0 2px; }
@@ -36,7 +48,12 @@
   <div class="wrap">
     <header>
       <div class="title">Local HS Football</div>
-      <div class="muted" id="clock">--:--</div>
+      <div class="header-right">
+        <div class="muted" id="clock">--:--</div>
+        <div class="rotWrap" id="rotWrap" title="Time until next page">
+          <div class="rotBar" id="rotBar"></div>
+        </div>
+      </div>
     </header>
 
     <div class="grid" id="grid"></div>
@@ -48,7 +65,7 @@
 
   <script>
     // -------- URL params --------
-    const params = new URLSearchParams(location.search);
+    const params  = new URLSearchParams(location.search);
     const office  = params.get("office")  || "mead-office";
     const perPage = Math.max(1, parseInt(params.get("per") || "2", 10));     // cards per page
     const rotateS = Math.max(5, parseInt(params.get("rotate") || "20", 10)); // seconds per page
@@ -56,6 +73,11 @@
 
     const elGrid    = document.getElementById("grid");
     const elUpdated = document.getElementById("updated");
+    const elRotWrap = document.getElementById("rotWrap");
+    const elRotBar  = document.getElementById("rotBar");
+
+    // Hide progress bar if no rotation is needed
+    elRotWrap.style.display = "none";
 
     // -------- clock --------
     function startClock(){
@@ -166,7 +188,7 @@
 
       function rowTable(r){
         if(!r) return '<div class="sub">—</div>';
-        // NO Div or Points in this order:
+        // NO Div or Points:
         const order = ["Date","Opponent","Class","W-L","W/L","Score","Site","Time","Home/Away"];
         const keys = order.filter(k => Object.prototype.hasOwnProperty.call(r,k));
         const rowsHtml = keys.map(k => `<tr><th>${k}</th><td>${r[k]}</td></tr>`).join("");
@@ -191,7 +213,7 @@
       return div;
     }
 
-    // ---- boot / paging ----
+    // ---- boot / paging with animated transitions + progress bar ----
     (async function init(){
       startClock();
 
@@ -213,6 +235,7 @@
       let pageIdx = 0;
 
       function renderPage(){
+        elGrid.classList.remove('fade-in','fade-out');
         elGrid.innerHTML = "";
         const slice = pages[pageIdx] || [];
         for(const {name, key} of slice){
@@ -235,15 +258,45 @@
             elGrid.appendChild(card);
           }
         }
+        // trigger fade-in after re-render
+        requestAnimationFrame(() => elGrid.classList.add('fade-in'));
       }
 
       renderPage();
 
       if (pages.length > 1){
-        setInterval(() => {
-          pageIdx = (pageIdx + 1) % pages.length;
-          renderPage();
-        }, rotateS * 1000);
+        elRotWrap.style.display = "block";
+        let cycleStart = performance.now();
+
+        function tick(){
+          const now   = performance.now();
+          const durMs = rotateS * 1000;
+          let pct = Math.min(1, (now - cycleStart) / durMs);
+          elRotBar.style.width = (pct * 100) + "%";
+
+          // last ~1.5s -> amber bar to cue "about to rotate"
+          if (durMs - (now - cycleStart) <= 1500) {
+            elRotBar.style.backgroundColor = getComputedStyle(document.documentElement)
+              .getPropertyValue('--warn') || '#f59e0b';
+          } else {
+            elRotBar.style.backgroundColor = getComputedStyle(document.documentElement)
+              .getPropertyValue('--accent') || '#4fd1c5';
+          }
+
+          if (pct >= 1){
+            // fade out, then switch page, then fade in
+            elGrid.classList.remove('fade-in');
+            elGrid.classList.add('fade-out');
+            setTimeout(() => {
+              pageIdx = (pageIdx + 1) % pages.length;
+              renderPage();
+              elRotBar.style.width = "0%";
+              cycleStart = performance.now();
+            }, 420); // match CSS transition
+          }
+          requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
       }
     })();
   </script>
