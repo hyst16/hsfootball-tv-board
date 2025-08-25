@@ -4,28 +4,32 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Local HS Football</title>
-  <!-- Auto-refresh every 10 minutes for TV screens -->
-  <meta http-equiv="refresh" content="600">
+  <meta http-equiv="refresh" content="600"><!-- TV auto-refresh every 10m -->
 
   <style>
     :root { --bg:#0b0e13; --card:#121722; --ink:#e7edf6; --muted:#9fb0c2; --accent:#4fd1c5; }
     html, body { height:100%; margin:0; background:var(--bg); color:var(--ink);
-                 font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
     .wrap { display:flex; flex-direction:column; min-height:100%; }
     header { display:flex; justify-content:space-between; align-items:center; padding:20px 28px; }
     .title { font-weight:800; letter-spacing:.3px; font-size:32px; }
     .muted { color:var(--muted); }
-    .grid { display:grid; gap:20px; padding:0 28px 28px; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
-    .card { background:var(--card); border-radius:18px; padding:18px 18px 16px;
-            box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px rgba(255,255,255,.05); }
+    .grid { display:grid; gap:20px; padding:0 28px 28px; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); }
+    .card { background:var(--card); border-radius:18px; padding:18px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px rgba(255,255,255,.05); min-height: 240px; }
     .chip { display:inline-block; padding:4px 10px; border-radius:999px; background:#0f1624; color:var(--muted);
-            font-size:12px; border:1px solid rgba(255,255,255,.06); }
-    .team { font-size:22px; font-weight:800; margin:10px 0 4px; }
-    .sub { font-size:13px; color:var(--muted); margin-bottom:10px; }
+      font-size:12px; border:1px solid rgba(255,255,255,.06); }
+    .team { font-size:24px; font-weight:800; margin:10px 0 2px; }
+    .sub { font-size:13px; color:var(--muted); margin:6px 0 8px; }
+    .rowline { display:flex; gap:10px; align-items:baseline; }
+    .label { color:var(--muted); font-weight:600; font-size:12px; width:76px; flex:0 0 auto; }
+    .value { font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .section { margin-top:10px; font-weight:700; font-size:13px; color:var(--muted); }
+    .sep { height:8px; }
     .table { width:100%; border-collapse:collapse; font-size:14px; }
     .table th, .table td { padding:6px 0; border-bottom:1px solid rgba(255,255,255,.06); }
     .table th { text-align:left; color:var(--muted); font-weight:600; font-size:12px; letter-spacing:.3px; }
-    footer { text-align:center; color:var(--muted); font-size:12px; padding:14px 0 22px; }
+    footer { text-align:center; color:var(--muted); font-size:12px; padding:10px 0 18px; }
   </style>
 </head>
 <body>
@@ -43,13 +47,17 @@
   </div>
 
   <script>
-    // --- URL config: use ?office=<key> to choose which teams to show from teams.json
+    // -------- URL params --------
     const params = new URLSearchParams(location.search);
-    const office = params.get("office") || "mead-office";
+    const office  = params.get("office")  || "mead-office";
+    const perPage = Math.max(1, parseInt(params.get("per") || "2", 10));     // cards per page
+    const rotateS = Math.max(5, parseInt(params.get("rotate") || "20", 10)); // seconds per page
+    const mode    = (params.get("mode") || "compact").toLowerCase();         // "compact" | "full"
 
     const elGrid    = document.getElementById("grid");
     const elUpdated = document.getElementById("updated");
 
+    // -------- clock --------
     function startClock(){
       function tick(){
         const d = new Date();
@@ -60,13 +68,10 @@
       tick(); setInterval(tick, 15000);
     }
 
+    // -------- utils --------
     function norm(s){ return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,""); }
-
-    async function loadJSON(url){
-      const r = await fetch(url, {cache:"no-cache"});
-      if(!r.ok) throw new Error("Failed to load " + url);
-      return r.json();
-    }
+    async function loadJSON(url){ const r = await fetch(url, {cache:"no-cache"}); if(!r.ok) throw new Error(url); return r.json(); }
+    const chunk = (arr, size) => arr.reduce((a,_,i)=> (i%size? a[a.length-1].push(arr[i]) : a.push([arr[i]]), a), []);
 
     // ---- Helpers for picking Last/Next games ----
     function parseDateMMDDYY(s){
@@ -91,10 +96,8 @@
                         .sort((a,b)=> a.d - b.d);
 
       const today = new Date(); today.setHours(0,0,0,0);
-
       const pastDone = items.filter(x => x.done && x.d <= today);
       const last = pastDone.length ? pastDone[pastDone.length-1].r : null;
-
       const next = (items.find(x => !x.done && x.d >= today) || {}).r || null;
 
       if (!last) {
@@ -105,8 +108,7 @@
     }
 
     function currentRecord(rows){
-      const toDate = d => { const t=new Date(d); t.setHours(0,0,0,0); return t; };
-      const today = toDate(new Date());
+      const today = new Date(); today.setHours(0,0,0,0);
       const items = rows
         .map(r => ({ r, d: parseDateMMDDYY(r.Date), done: isCompleted(r) }))
         .filter(x => x.d && !isNaN(x.d))
@@ -114,21 +116,58 @@
 
       const pastDone = items.filter(x => x.done && x.d <= today);
       let rec = pastDone.length ? String(pastDone[pastDone.length-1].r["W-L"]||"").trim() : "";
-
       if (!rec) rec = String((items[0]?.r["W-L"]) || "").trim();
       if (!rec || rec === "-") rec = "0-0";
       return rec;
     }
 
-    // ---- Card renderer: keeps a Class chip at top; under team shows "Class X · Record Y-Z" ----
-    function buildCardTwo(rowLast, rowNext, record){
+    // ---- card render helpers ----
+    function line(label, value){
+      return `<div class="rowline"><div class="label">${label}</div><div class="value">${value ?? "-"}</div></div>`;
+    }
+
+    function buildCardCompact(rowLast, rowNext, record){
+      const rowAny = rowLast || rowNext || {};
+      const team = rowAny._team || "Unknown";
+      const cls  = rowAny._class || "?";
+
+      const lastBlock = rowLast ? (
+        line("Date", rowLast.Date) +
+        line("Opponent", rowLast.Opponent) +
+        line("Score", rowLast.Score || "-") +
+        line("W/L", rowLast["W/L"] || "-")
+      ) : `<div class="sub">—</div><div class="sub">No results yet.</div>`;
+
+      const nextBlock = rowNext ? (
+        line("Date", rowNext.Date) +
+        line("Opponent", rowNext.Opponent)
+      ) : `<div class="sub">—</div><div class="sub">No future games scheduled.</div>`;
+
+      const div = document.createElement("div");
+      div.className = "card";
+      div.innerHTML = `
+        <div class="chip">Class ${cls}</div>
+        <div class="team">${team}</div>
+        <div class="sub">Class ${cls} · Record ${record}</div>
+
+        <div class="section">Last Game</div>
+        ${lastBlock}
+        <div class="sep"></div>
+        <div class="section">Next Game</div>
+        ${nextBlock}
+      `;
+      return div;
+    }
+
+    function buildCardFull(rowLast, rowNext, record){
       const rowAny = rowLast || rowNext || {};
       const team = rowAny._team || "Unknown";
       const cls  = rowAny._class || "?";
 
       function rowTable(r){
         if(!r) return '<div class="sub">—</div>';
-        const order = ["Date","Opponent","Class","W-L","W/L","Score","Div","Points","Site","Time","Home/Away"];
+        // NO Div or Points in this order:
+        const order = ["Date","Opponent","Class","W-L","W/L","Score","Site","Time","Home/Away"];
         const keys = order.filter(k => Object.prototype.hasOwnProperty.call(r,k));
         const rowsHtml = keys.map(k => `<tr><th>${k}</th><td>${r[k]}</td></tr>`).join("");
         return `<table class="table">${rowsHtml}</table>`;
@@ -152,7 +191,7 @@
       return div;
     }
 
-    // ---- Boot ----
+    // ---- boot / paging ----
     (async function init(){
       startClock();
 
@@ -161,35 +200,50 @@
         loadJSON("./data/football.json").catch(()=>({updated:0, by_team:{}}))
       ]);
 
-      if (data.updated) {
-        elUpdated.textContent = new Date(data.updated*1000).toLocaleString();
-      } else {
-        elUpdated.textContent = "(no data yet)";
-      }
+      if (data.updated) elUpdated.textContent = new Date(data.updated*1000).toLocaleString();
+      else elUpdated.textContent = "(no data yet)";
 
-      const wanted = teamsCfg[office] || [];
+      const wanted = (teamsCfg[office] || []).map(t => ({ name: t, key: norm(t) }));
       if(!wanted.length){
         elGrid.innerHTML = `<div class="muted">Add teams for "${office}" in <code>teams.json</code>.</div>`;
         return;
       }
 
-      for(const team of wanted){
-        const key = norm(team);
-        const rows = (data.by_team && data.by_team[key]) || [];
-        if(!rows.length){
-          const placeholder = document.createElement("div");
-          placeholder.className = "card";
-          placeholder.innerHTML = `
-            <div class="chip">No Data</div>
-            <div class="team">${team}</div>
-            <div class="sub">No match found yet. Make sure the name matches NSAA's caption (without the record).</div>
-          `;
-          elGrid.appendChild(placeholder);
-        } else {
-          const pick = splitLastAndNext(rows);
-          const rec  = currentRecord(rows);
-          elGrid.appendChild(buildCardTwo(pick.last, pick.next, rec));
+      const pages = chunk(wanted, perPage);
+      let pageIdx = 0;
+
+      function renderPage(){
+        elGrid.innerHTML = "";
+        const slice = pages[pageIdx] || [];
+        for(const {name, key} of slice){
+          const rows = (data.by_team && data.by_team[key]) || [];
+          if(!rows.length){
+            const card = document.createElement("div");
+            card.className = "card";
+            card.innerHTML = `
+              <div class="chip">No Data</div>
+              <div class="team">${name}</div>
+              <div class="sub">No match found yet. Ensure name matches NSAA caption (without record).</div>
+            `;
+            elGrid.appendChild(card);
+          } else {
+            const pick = splitLastAndNext(rows);
+            const rec  = currentRecord(rows);
+            const card = (mode === "full")
+              ? buildCardFull(pick.last, pick.next, rec)
+              : buildCardCompact(pick.last, pick.next, rec);
+            elGrid.appendChild(card);
+          }
         }
+      }
+
+      renderPage();
+
+      if (pages.length > 1){
+        setInterval(() => {
+          pageIdx = (pageIdx + 1) % pages.length;
+          renderPage();
+        }, rotateS * 1000);
       }
     })();
   </script>
