@@ -4,55 +4,61 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Local HS Football</title>
-  <meta http-equiv="refresh" content="600"><!-- TV auto-refresh every 10m -->
+  <!-- TV auto-refresh every 10 minutes -->
+  <meta http-equiv="refresh" content="600">
 
   <style>
     :root {
-      --bg:#0b0e13; --card:#121722; --ink:#e7edf6; --muted:#9fb0c2; --accent:#4fd1c5;
-      --warn:#f59e0b;
+      --bg:#0b0e13; --card:#121722; --ink:#e7edf6; --muted:#9fb0c2; --accent:#4fd1c5; --warn:#f59e0b;
+      --card-min:320px; /* you can override via ?cardmin=300 */
     }
     html, body { height:100%; margin:0; background:var(--bg); color:var(--ink);
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
     .wrap { display:flex; flex-direction:column; min-height:100%; }
-    header { display:flex; justify-content:space-between; align-items:center; padding:20px 28px; gap:16px; flex-wrap:wrap; }
-    .title { font-weight:800; letter-spacing:.3px; font-size:32px; }
-    .muted { color:var(--muted); }
-    .header-right { display:flex; align-items:center; gap:12px; }
-    .rotWrap { width:260px; height:6px; background:rgba(255,255,255,.08); border-radius:999px; overflow:hidden; }
-    .rotBar  { height:100%; width:0%; background:var(--accent); transition: width .1s linear, background-color .2s ease; }
 
-    .grid { display:grid; gap:20px; padding:0 28px 28px; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); }
-    .card { background:var(--card); border-radius:18px; padding:18px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px rgba(255,255,255,.05); min-height: 240px; }
+    header { padding:20px 28px 8px; display:grid; grid-template-columns:1fr auto; align-items:end; gap:14px; }
+    .title { font-weight:800; letter-spacing:.3px; font-size:32px; grid-column:1 / 2; }
+    .clock { color:var(--muted); font-size:14px; grid-column:2 / 3; justify-self:end; }
 
-    /* Fade transition between pages */
-    .grid.fade-out { opacity:0; transform: translateY(8px); transition: opacity .4s ease, transform .4s ease; }
-    .grid.fade-in  { opacity:1; transform: translateY(0);  transition: opacity .4s ease, transform .4s ease; }
+    /* progress bar under title, left-aligned */
+    .progress-wrap { grid-column:1 / 2; width:min(420px, 60vw); height:6px;
+      background:rgba(255,255,255,.08); border-radius:999px; overflow:hidden; }
+    .progress { height:100%; width:0%; background:var(--accent); }
 
-    .chip { display:inline-block; padding:4px 10px; border-radius:999px; background:#0f1624; color:var(--muted);
-      font-size:12px; border:1px solid rgba(255,255,255,.06); }
-    .team { font-size:24px; font-weight:800; margin:10px 0 2px; }
+    /* grid + cards */
+    .grid { display:grid; gap:16px 16px; padding:8px 28px 28px;
+      grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr)); }
+    .card { background:var(--card); border-radius:18px; padding:16px 16px 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px rgba(255,255,255,.05); min-height: 200px; }
+
+    /* fade animation when changing pages */
+    .grid.fade-out { opacity:0; transform: translateY(8px); transition: opacity .35s ease, transform .35s ease; }
+    .grid.fade-in  { opacity:1; transform: translateY(0);  transition: opacity .35s ease, transform .35s ease; }
+
+    .team { font-size:22px; font-weight:800; margin:4px 0 2px; }
     .sub { font-size:13px; color:var(--muted); margin:6px 0 8px; }
+    .section { margin-top:8px; font-weight:700; font-size:13px; color:var(--muted); }
     .rowline { display:flex; gap:10px; align-items:baseline; }
     .label { color:var(--muted); font-weight:600; font-size:12px; width:76px; flex:0 0 auto; }
     .value { font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .section { margin-top:10px; font-weight:700; font-size:13px; color:var(--muted); }
-    .sep { height:8px; }
+
     .table { width:100%; border-collapse:collapse; font-size:14px; }
     .table th, .table td { padding:6px 0; border-bottom:1px solid rgba(255,255,255,.06); }
     .table th { text-align:left; color:var(--muted); font-weight:600; font-size:12px; letter-spacing:.3px; }
-    footer { text-align:center; color:var(--muted); font-size:12px; padding:10px 0 18px; }
+
+    footer { text-align:center; color:var(--muted); font-size:12px; padding:8px 0 16px; }
+
+    /* keyframe for progress bar; duration is set inline so it restarts each page */
+    @keyframes rotProgress { from { width:0% } to { width:100% } }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header>
       <div class="title">Local HS Football</div>
-      <div class="header-right">
-        <div class="muted" id="clock">--:--</div>
-        <div class="rotWrap" id="rotWrap" title="Time until next page">
-          <div class="rotBar" id="rotBar"></div>
-        </div>
+      <div class="clock" id="clock">--:--</div>
+      <div class="progress-wrap" id="progWrap" title="Time until next page">
+        <div class="progress" id="progress"></div>
       </div>
     </header>
 
@@ -65,27 +71,33 @@
 
   <script>
     // -------- URL params --------
-    const params  = new URLSearchParams(location.search);
-    const office  = params.get("office")  || "mead-office";
-    const perPage = Math.max(1, parseInt(params.get("per") || "2", 10));     // cards per page
-    const rotateS = Math.max(5, parseInt(params.get("rotate") || "20", 10)); // seconds per page
-    const mode    = (params.get("mode") || "compact").toLowerCase();         // "compact" | "full"
+    const p = new URLSearchParams(location.search);
+    const office   = p.get("office")  || "mead-office";
+    const perPage  = Math.max(1, parseInt(p.get("per") || "2", 10));     // cards per page
+    const rotateS  = Math.max(5, parseInt(p.get("rotate") || "20", 10)); // seconds per page
+    const mode     = (p.get("mode") || "compact").toLowerCase();         // "compact" | "full"
+    const cardMin  = parseInt(p.get("cardmin") || "0", 10);              // e.g., &cardmin=300
+    const anim     = (p.get("anim") || "on").toLowerCase() !== "off";    // &anim=off disables fades
+
+    if (!Number.isNaN(cardMin) && cardMin > 150) {
+      // let you shrink cards further via ?cardmin=280, etc.
+      document.documentElement.style.setProperty('--card-min', cardMin + 'px');
+    }
 
     const elGrid    = document.getElementById("grid");
     const elUpdated = document.getElementById("updated");
-    const elRotWrap = document.getElementById("rotWrap");
-    const elRotBar  = document.getElementById("rotBar");
+    const elClock   = document.getElementById("clock");
+    const elProgW   = document.getElementById("progWrap");
+    const elProg    = document.getElementById("progress");
 
-    // Hide progress bar if no rotation is needed
-    elRotWrap.style.display = "none";
+    // hide progress when no rotation needed
+    elProgW.style.display = "none";
 
     // -------- clock --------
     function startClock(){
       function tick(){
         const d = new Date();
-        const hh = String(d.getHours()).padStart(2,"0");
-        const mm = String(d.getMinutes()).padStart(2,"0");
-        document.getElementById("clock").textContent = `${hh}:${mm}`;
+        elClock.textContent = `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
       }
       tick(); setInterval(tick, 15000);
     }
@@ -95,7 +107,7 @@
     async function loadJSON(url){ const r = await fetch(url, {cache:"no-cache"}); if(!r.ok) throw new Error(url); return r.json(); }
     const chunk = (arr, size) => arr.reduce((a,_,i)=> (i%size? a[a.length-1].push(arr[i]) : a.push([arr[i]]), a), []);
 
-    // ---- Helpers for picking Last/Next games ----
+    // ---- date/result helpers ----
     function parseDateMMDDYY(s){
       const m = /^(\d{2})\/(\d{2})\/(\d{2})$/.exec((s||"").trim());
       if(!m) return null;
@@ -103,7 +115,6 @@
       const yyyy = (+yy < 70) ? 2000 + (+yy) : 1900 + (+yy);
       return new Date(yyyy, (+mm)-1, (+dd));
     }
-
     function isCompleted(row){
       const score = String(row.Score||"").trim();
       const wl    = String(row["W/L"]||"").trim().toUpperCase();
@@ -111,31 +122,20 @@
       if (wl === "W" || wl === "L" || wl === "T") return true;
       return false;
     }
-
     function splitLastAndNext(rows){
       const items = rows.map(r => ({ r, d: parseDateMMDDYY(r.Date), done: isCompleted(r) }))
-                        .filter(x => x.d && !isNaN(x.d))
-                        .sort((a,b)=> a.d - b.d);
-
+                        .filter(x => x.d && !isNaN(x.d)).sort((a,b)=> a.d - b.d);
       const today = new Date(); today.setHours(0,0,0,0);
       const pastDone = items.filter(x => x.done && x.d <= today);
       const last = pastDone.length ? pastDone[pastDone.length-1].r : null;
       const next = (items.find(x => !x.done && x.d >= today) || {}).r || null;
-
-      if (!last) {
-        const anyDone = items.filter(x => x.done);
-        if (anyDone.length) return { last: anyDone[anyDone.length-1].r, next };
-      }
+      if (!last) { const anyDone = items.filter(x => x.done); if (anyDone.length) return { last:anyDone[anyDone.length-1].r, next }; }
       return { last, next };
     }
-
     function currentRecord(rows){
       const today = new Date(); today.setHours(0,0,0,0);
-      const items = rows
-        .map(r => ({ r, d: parseDateMMDDYY(r.Date), done: isCompleted(r) }))
-        .filter(x => x.d && !isNaN(x.d))
-        .sort((a,b)=> a.d - b.d);
-
+      const items = rows.map(r => ({ r, d: parseDateMMDDYY(r.Date), done: isCompleted(r) }))
+                        .filter(x => x.d && !isNaN(x.d)).sort((a,b)=> a.d - b.d);
       const pastDone = items.filter(x => x.done && x.d <= today);
       let rec = pastDone.length ? String(pastDone[pastDone.length-1].r["W-L"]||"").trim() : "";
       if (!rec) rec = String((items[0]?.r["W-L"]) || "").trim();
@@ -143,91 +143,68 @@
       return rec;
     }
 
-    // ---- card render helpers ----
+    // ---- card renderers ----
     function line(label, value){
       return `<div class="rowline"><div class="label">${label}</div><div class="value">${value ?? "-"}</div></div>`;
     }
-
     function buildCardCompact(rowLast, rowNext, record){
       const rowAny = rowLast || rowNext || {};
       const team = rowAny._team || "Unknown";
       const cls  = rowAny._class || "?";
-
       const lastBlock = rowLast ? (
-        line("Date", rowLast.Date) +
-        line("Opponent", rowLast.Opponent) +
-        line("Score", rowLast.Score || "-") +
-        line("W/L", rowLast["W/L"] || "-")
+        line("Date", rowLast.Date) + line("Opponent", rowLast.Opponent) + line("Score", rowLast.Score || "-") + line("W/L", rowLast["W/L"] || "-")
       ) : `<div class="sub">—</div><div class="sub">No results yet.</div>`;
-
       const nextBlock = rowNext ? (
-        line("Date", rowNext.Date) +
-        line("Opponent", rowNext.Opponent)
+        line("Date", rowNext.Date) + line("Opponent", rowNext.Opponent)
       ) : `<div class="sub">—</div><div class="sub">No future games scheduled.</div>`;
-
       const div = document.createElement("div");
       div.className = "card";
       div.innerHTML = `
-        <div class="chip">Class ${cls}</div>
         <div class="team">${team}</div>
         <div class="sub">Class ${cls} · Record ${record}</div>
-
         <div class="section">Last Game</div>
         ${lastBlock}
-        <div class="sep"></div>
-        <div class="section">Next Game</div>
+        <div class="section" style="margin-top:10px;">Next Game</div>
         ${nextBlock}
       `;
       return div;
     }
-
     function buildCardFull(rowLast, rowNext, record){
       const rowAny = rowLast || rowNext || {};
       const team = rowAny._team || "Unknown";
       const cls  = rowAny._class || "?";
-
       function rowTable(r){
         if(!r) return '<div class="sub">—</div>';
-        // NO Div or Points:
-        const order = ["Date","Opponent","Class","W-L","W/L","Score","Site","Time","Home/Away"];
+        const order = ["Date","Opponent","Class","W-L","W/L","Score","Site","Time","Home/Away"]; // no Div/Points
         const keys = order.filter(k => Object.prototype.hasOwnProperty.call(r,k));
         const rowsHtml = keys.map(k => `<tr><th>${k}</th><td>${r[k]}</td></tr>`).join("");
         return `<table class="table">${rowsHtml}</table>`;
       }
-
       const div = document.createElement("div");
       div.className = "card";
       div.innerHTML = `
-        <div class="chip">Class ${cls}</div>
         <div class="team">${team}</div>
         <div class="sub">Class ${cls} · Record ${record}</div>
-
         <div class="sub" style="margin-top:12px;font-weight:600;">Last Game</div>
-        ${rowTable(rowLast)}
-        ${!rowLast ? `<div class="sub">No results yet.</div>` : ""}
-
+        ${rowTable(rowLast)} ${!rowLast ? `<div class="sub">No results yet.</div>` : ""}
         <div class="sub" style="margin-top:12px;font-weight:600;">Next Game</div>
-        ${rowTable(rowNext)}
-        ${!rowNext ? `<div class="sub">No future games scheduled.</div>` : ""}
+        ${rowTable(rowNext)} ${!rowNext ? `<div class="sub">No future games scheduled.</div>` : ""}
       `;
       return div;
     }
 
-    // ---- boot / paging with animated transitions + progress bar ----
+    // ---- boot / paging (CSS progress + setTimeout rotation) ----
     (async function init(){
       startClock();
-
       const [teamsCfg, data] = await Promise.all([
         loadJSON("./teams.json"),
         loadJSON("./data/football.json").catch(()=>({updated:0, by_team:{}}))
       ]);
-
-      if (data.updated) elUpdated.textContent = new Date(data.updated*1000).toLocaleString();
-      else elUpdated.textContent = "(no data yet)";
+      elUpdated.textContent = data.updated ? new Date(data.updated*1000).toLocaleString() : "(no data yet)";
 
       const wanted = (teamsCfg[office] || []).map(t => ({ name: t, key: norm(t) }));
       if(!wanted.length){
-        elGrid.innerHTML = `<div class="muted">Add teams for "${office}" in <code>teams.json</code>.</div>`;
+        document.getElementById("grid").innerHTML = `<div class="sub" style="padding:0 28px">Add teams for "${office}" in <code>teams.json</code>.</div>`;
         return;
       }
 
@@ -235,69 +212,60 @@
       let pageIdx = 0;
 
       function renderPage(){
-        elGrid.classList.remove('fade-in','fade-out');
-        elGrid.innerHTML = "";
-        const slice = pages[pageIdx] || [];
-        for(const {name, key} of slice){
-          const rows = (data.by_team && data.by_team[key]) || [];
-          if(!rows.length){
-            const card = document.createElement("div");
-            card.className = "card";
-            card.innerHTML = `
-              <div class="chip">No Data</div>
-              <div class="team">${name}</div>
-              <div class="sub">No match found yet. Ensure name matches NSAA caption (without record).</div>
-            `;
-            elGrid.appendChild(card);
-          } else {
-            const pick = splitLastAndNext(rows);
-            const rec  = currentRecord(rows);
-            const card = (mode === "full")
-              ? buildCardFull(pick.last, pick.next, rec)
-              : buildCardCompact(pick.last, pick.next, rec);
-            elGrid.appendChild(card);
+        if (anim) { elGrid.classList.remove('fade-in'); elGrid.classList.add('fade-out'); }
+        setTimeout(() => {
+          elGrid.innerHTML = "";
+          const slice = pages[pageIdx] || [];
+          for(const {name, key} of slice){
+            const rows = (data.by_team && data.by_team[key]) || [];
+            if(!rows.length){
+              const card = document.createElement("div");
+              card.className = "card";
+              card.innerHTML = `
+                <div class="team">${name}</div>
+                <div class="sub">No match found yet. Ensure name matches NSAA caption (without record).</div>
+              `;
+              elGrid.appendChild(card);
+            } else {
+              const pick = splitLastAndNext(rows);
+              const rec  = currentRecord(rows);
+              const card = (mode === "full")
+                ? buildCardFull(pick.last, pick.next, rec)
+                : buildCardCompact(pick.last, pick.next, rec);
+              elGrid.appendChild(card);
+            }
           }
-        }
-        // trigger fade-in after re-render
-        requestAnimationFrame(() => elGrid.classList.add('fade-in'));
+          if (anim) { elGrid.classList.remove('fade-out'); elGrid.classList.add('fade-in'); }
+        }, anim ? 350 : 0);
       }
 
+      function startProgress(){
+        if (pages.length <= 1){ elProgW.style.display = "none"; return; }
+        elProgW.style.display = "block";
+        // restart keyframe animation by resetting the property
+        elProg.style.animation = "none";
+        // force reflow so animation restarts reliably in signage players
+        void elProg.offsetWidth;
+        elProg.style.animation = `rotProgress ${rotateS}s linear forwards`;
+        // turn amber for the last ~1.5s using a delayed class
+        setTimeout(() => { elProg.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--warn'); }, Math.max(0, (rotateS*1000)-1500));
+        // revert color at next start (handled when we reset style)
+        setTimeout(() => { elProg.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--accent'); }, rotateS*1000 + 50);
+      }
+
+      function scheduleNext(){
+        startProgress();
+        // rotate after rotateS seconds
+        setTimeout(() => {
+          pageIdx = (pageIdx + 1) % pages.length;
+          renderPage();
+          scheduleNext(); // chain the next rotation
+        }, rotateS * 1000);
+      }
+
+      // initial render & rotation
       renderPage();
-
-      if (pages.length > 1){
-        elRotWrap.style.display = "block";
-        let cycleStart = performance.now();
-
-        function tick(){
-          const now   = performance.now();
-          const durMs = rotateS * 1000;
-          let pct = Math.min(1, (now - cycleStart) / durMs);
-          elRotBar.style.width = (pct * 100) + "%";
-
-          // last ~1.5s -> amber bar to cue "about to rotate"
-          if (durMs - (now - cycleStart) <= 1500) {
-            elRotBar.style.backgroundColor = getComputedStyle(document.documentElement)
-              .getPropertyValue('--warn') || '#f59e0b';
-          } else {
-            elRotBar.style.backgroundColor = getComputedStyle(document.documentElement)
-              .getPropertyValue('--accent') || '#4fd1c5';
-          }
-
-          if (pct >= 1){
-            // fade out, then switch page, then fade in
-            elGrid.classList.remove('fade-in');
-            elGrid.classList.add('fade-out');
-            setTimeout(() => {
-              pageIdx = (pageIdx + 1) % pages.length;
-              renderPage();
-              elRotBar.style.width = "0%";
-              cycleStart = performance.now();
-            }, 420); // match CSS transition
-          }
-          requestAnimationFrame(tick);
-        }
-        requestAnimationFrame(tick);
-      }
+      if (pages.length > 1) scheduleNext();
     })();
   </script>
 </body>
