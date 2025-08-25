@@ -13,7 +13,7 @@ CLASS_URLS = {
     "D6":  "https://nsaa-static.s3.amazonaws.com/calculate/showclassfbD6.html",
 }
 
-OUT_PATH = Path(__file__).resolve().parents[1] / "site" / "data" / "football.json"
+OUT_PATH = Path(__file__).resolve().parents[1] / "data" / "football.json"
 OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 def clean_text(t):
