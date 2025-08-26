@@ -1,5 +1,6 @@
 {
-  "mead-office": ["Wahoo", "Bishop Neumann", "Mead","Yutan"],
+  "mead-office": ["Wahoo", "Bishop Neumann", "Mead", "Yutan"],
   "yanka-office": ["Aquinas Catholic", "David City", "East Butler"],
+  "northbend-office": ["North Bend Central", "Arlington", "Logan View/Scribner-Snyder", "Schuyler"],
   "lincoln-office": ["Lincoln Southeast", "Lincoln Southwest", "Lincoln East"]
 }
