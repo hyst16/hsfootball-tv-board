@@ -132,15 +132,36 @@
       if (!last) { const anyDone = items.filter(x => x.done); if (anyDone.length) return { last:anyDone[anyDone.length-1].r, next }; }
       return { last, next };
     }
+
+    // NEW: compute team's record from its own W/L results (W/L/T) across completed games up to today.
     function currentRecord(rows){
       const today = new Date(); today.setHours(0,0,0,0);
-      const items = rows.map(r => ({ r, d: parseDateMMDDYY(r.Date), done: isCompleted(r) }))
-                        .filter(x => x.d && !isNaN(x.d)).sort((a,b)=> a.d - b.d);
-      const pastDone = items.filter(x => x.done && x.d <= today);
-      let rec = pastDone.length ? String(pastDone[pastDone.length-1].r["W-L"]||"").trim() : "";
-      if (!rec) rec = String((items[0]?.r["W-L"]) || "").trim();
-      if (!rec || rec === "-") rec = "0-0";
-      return rec;
+
+      const items = rows.map(r => ({
+          r,
+          d: parseDateMMDDYY(r.Date),
+          done: isCompleted(r)
+        }))
+        .filter(x => x.d && !isNaN(x.d))
+        .sort((a,b) => a.d - b.d);
+
+      const completed = items.filter(x => x.done && x.d <= today).map(x => x.r);
+
+      let w = 0, l = 0, t = 0;
+      for (const r of completed) {
+        const res = String(r["W/L"] || "").trim().toUpperCase();
+        if (res === "W") w++;
+        else if (res === "L") l++;
+        else if (res === "T") t++;
+      }
+      if (w + l + t > 0) return t ? `${w}-${l}-${t}` : `${w}-${l}`;
+
+      // Fallback: sometimes the caption includes "(3-3)"
+      const disp = (items[0]?.r?._team_display) || (rows[0]?._team_display) || "";
+      const m = /\((\d+)-(\d+)(?:-(\d+))?\)/.exec(disp);
+      if (m) return m[3] ? `${m[1]}-${m[2]}-${m[3]}` : `${m[1]}-${m[2]}`;
+
+      return "0-0";
     }
 
     // ---- card renderers ----
