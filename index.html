@@ -355,38 +355,26 @@
     }
 
     function currentRecord(rows) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+  let wins = 0;
+  let losses = 0;
 
-      const completedRows = rows
-        .map(row => ({ row, date: parseGameDate(row.Date), done: isCompleted(row) }))
-        .filter(item => item.date && item.done && item.date <= today)
-        .sort((a, b) => a.date - b.date)
-        .map(item => item.row);
+  rows.forEach(row => {
+    const score = String(row.Score || "")
+      .replace(/[–—]/g, "-");
 
-      let wins = 0;
-      let losses = 0;
-      let ties = 0;
+    const m = score.match(/^(\d+)\-(\d+)$/);
 
-      for (const row of completedRows) {
-        const result = String(row["W/L"] || "").trim().toUpperCase();
-        if (result === "W") wins += 1;
-        else if (result === "L") losses += 1;
-        else if (result === "T") ties += 1;
-      }
+    if (!m) return;
 
-      if (wins + losses + ties > 0) {
-        return ties ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`;
-      }
+    const us = parseInt(m[1], 10);
+    const them = parseInt(m[2], 10);
 
-      const displayName = rows[0]?._team_display || "";
-      const match = /\((\d+)-(\d+)(?:-(\d+))?\)\s*$/.exec(displayName);
-      if (match) {
-        return match[3] ? `${match[1]}-${match[2]}-${match[3]}` : `${match[1]}-${match[2]}`;
-      }
+    if (us > them) wins++;
+    else if (us < them) losses++;
+  });
 
-      return "0-0";
-    }
+  return `${wins}-${losses}`;
+}
 
     // ---------- Card rendering ----------
     function line(label, value) {
