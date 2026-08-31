@@ -1,46 +1,47 @@
-name: Scrape NSAA -> Build JSON
+name: Update Football Schedules
 
 on:
-  schedule:
-    - cron: '15 11 * * *'   # ~06:15 America/Chicago, GitHub uses UTC
   workflow_dispatch:
+
+  schedule:
+    # 6:15 AM Central every day
+    - cron: "15 11 * * *"
+
+permissions:
+  contents: write
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: true
-          fetch-depth: 0
 
-      - name: Set up Python
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.12"
 
-      - name: Install deps
+      - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run scraper
+      - name: Run NSAA Scraper
         run: |
-          python scraper/scrape_nsaa.py
-          # verify the new location (ROOT/data)
-          test -f data/football.json
+          python scrape_nsaa.py
 
-      - name: Commit & push if changed
+      - name: Commit Updated Football Data
         run: |
-          if [ -n "$(git status --porcelain)" ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add data/football.json
-            git commit -m "chore: update football.json ($(date -u +'%Y-%m-%d %H:%M:%SZ'))"
-            git push
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data/football.json
+
+          if git diff --cached --quiet; then
+            echo "No schedule changes."
           else
-            echo "No changes to commit."
+            git commit -m "Update football schedules"
+            git push
           fi
