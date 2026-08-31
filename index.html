@@ -1,57 +1,206 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Local HS Football</title>
+
   <!-- TV auto-refresh every 10 minutes -->
   <meta http-equiv="refresh" content="600">
 
   <style>
     :root {
-      --bg:#0b0e13; --card:#121722; --ink:#e7edf6; --muted:#9fb0c2; --accent:#4fd1c5; --warn:#f59e0b;
-      --card-min:320px; /* you can override via ?cardmin=300 */
+      --bg: #0b0e13;
+      --card: #121722;
+      --ink: #e7edf6;
+      --muted: #9fb0c2;
+      --accent: #4fd1c5;
+      --warn: #f59e0b;
+      --danger: #f87171;
+      --card-min: 320px;
     }
-    html, body { height:100%; margin:0; background:var(--bg); color:var(--ink);
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
-    .wrap { display:flex; flex-direction:column; min-height:100%; }
 
-    header { padding:20px 28px 8px; display:grid; grid-template-columns:1fr auto; align-items:end; gap:14px; }
-    .title { font-weight:800; letter-spacing:.3px; font-size:32px; grid-column:1 / 2; }
-    .clock { color:var(--muted); font-size:14px; grid-column:2 / 3; justify-self:end; }
+    * { box-sizing: border-box; }
 
-    /* progress bar under title, left-aligned */
-    .progress-wrap { grid-column:1 / 2; width:min(420px, 60vw); height:6px;
-      background:rgba(255,255,255,.08); border-radius:999px; overflow:hidden; }
-    .progress { height:100%; width:0%; background:var(--accent); }
+    html, body {
+      min-height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
 
-    /* grid + cards */
-    .grid { display:grid; gap:16px 16px; padding:8px 28px 28px;
-      grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr)); }
-    .card { background:var(--card); border-radius:18px; padding:16px 16px 14px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px rgba(255,255,255,.05); min-height: 200px; }
+    body { min-height: 100vh; }
 
-    /* fade animation when changing pages */
-    .grid.fade-out { opacity:0; transform: translateY(8px); transition: opacity .35s ease, transform .35s ease; }
-    .grid.fade-in  { opacity:1; transform: translateY(0);  transition: opacity .35s ease, transform .35s ease; }
+    .wrap {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
 
-    .team { font-size:22px; font-weight:800; margin:4px 0 2px; }
-    .sub { font-size:13px; color:var(--muted); margin:6px 0 8px; }
-    .section { margin-top:8px; font-weight:700; font-size:13px; color:var(--muted); }
-    .rowline { display:flex; gap:10px; align-items:baseline; }
-    .label { color:var(--muted); font-weight:600; font-size:12px; width:76px; flex:0 0 auto; }
-    .value { font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    header {
+      padding: 20px 28px 8px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: end;
+      gap: 14px;
+    }
 
-    .table { width:100%; border-collapse:collapse; font-size:14px; }
-    .table th, .table td { padding:6px 0; border-bottom:1px solid rgba(255,255,255,.06); }
-    .table th { text-align:left; color:var(--muted); font-weight:600; font-size:12px; letter-spacing:.3px; }
+    .title {
+      grid-column: 1 / 2;
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: .3px;
+    }
 
-    footer { text-align:center; color:var(--muted); font-size:12px; padding:8px 0 16px; }
+    .clock {
+      grid-column: 2 / 3;
+      justify-self: end;
+      color: var(--muted);
+      font-size: 14px;
+    }
 
-    /* keyframe for progress bar; duration is set inline so it restarts each page */
-    @keyframes rotProgress { from { width:0% } to { width:100% } }
+    .progress-wrap {
+      grid-column: 1 / 2;
+      width: min(420px, 60vw);
+      height: 6px;
+      overflow: hidden;
+      background: rgba(255,255,255,.08);
+      border-radius: 999px;
+    }
+
+    .progress {
+      width: 0;
+      height: 100%;
+      background: var(--accent);
+    }
+
+    .grid {
+      display: grid;
+      flex: 1;
+      grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+      gap: 16px;
+      padding: 8px 28px 28px;
+    }
+
+    .grid.fade-out {
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity .35s ease, transform .35s ease;
+    }
+
+    .grid.fade-in {
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity .35s ease, transform .35s ease;
+    }
+
+    .card {
+      min-height: 200px;
+      padding: 16px 16px 14px;
+      background: var(--card);
+      border-radius: 18px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px rgba(255,255,255,.05);
+    }
+
+    .team {
+      margin: 4px 0 2px;
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    .sub {
+      margin: 6px 0 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .section {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .rowline {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    .label {
+      width: 76px;
+      flex: 0 0 auto;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .value {
+      min-width: 0;
+      overflow: hidden;
+      font-size: 14px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    .table th,
+    .table td {
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      vertical-align: top;
+    }
+
+    .table th {
+      width: 92px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .3px;
+      text-align: left;
+    }
+
+    .status {
+      grid-column: 1 / -1;
+      padding: 20px;
+      color: var(--muted);
+      background: var(--card);
+      border-radius: 18px;
+    }
+
+    .status.error {
+      color: #fecaca;
+      border: 1px solid rgba(248,113,113,.35);
+    }
+
+    code { color: var(--accent); }
+
+    footer {
+      padding: 8px 16px 16px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    @keyframes rotProgress {
+      from { width: 0; }
+      to { width: 100%; }
+    }
+
+    @media (max-width: 600px) {
+      header { padding: 16px 16px 8px; }
+      .title { font-size: 26px; }
+      .grid { padding: 8px 16px 20px; }
+    }
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <header>
@@ -62,232 +211,359 @@
       </div>
     </header>
 
-    <div class="grid" id="grid"></div>
+    <main class="grid" id="grid" aria-live="polite"></main>
 
     <footer>
-      Data scraped daily from NSAA class pages. Updated <span id="updated">…</span>.
+      Data updated <span id="updated">loading...</span>
     </footer>
   </div>
 
   <script>
-    // -------- URL params --------
-    const p = new URLSearchParams(location.search);
-    const office   = p.get("office")  || "mead-office";
-    const perPage  = Math.max(1, parseInt(p.get("per") || "2", 10));     // cards per page
-    const rotateS  = Math.max(5, parseInt(p.get("rotate") || "10", 10)); // seconds per page
-    const mode     = (p.get("mode") || "compact").toLowerCase();         // "compact" | "full"
-    const cardMin  = parseInt(p.get("cardmin") || "0", 10);              // e.g., &cardmin=300
-    const anim     = (p.get("anim") || "on").toLowerCase() !== "off";    // &anim=off disables fades
+    "use strict";
 
-    if (!Number.isNaN(cardMin) && cardMin > 150) {
-      // let you shrink cards further via ?cardmin=280, etc.
-      document.documentElement.style.setProperty('--card-min', cardMin + 'px');
+    // ---------- URL settings ----------
+    const params = new URLSearchParams(window.location.search);
+    const office = params.get("office") || "mead-office";
+    const perPage = Math.max(1, Number.parseInt(params.get("per") || "2", 10));
+    const rotateSeconds = Math.max(5, Number.parseInt(params.get("rotate") || "10", 10));
+    const mode = (params.get("mode") || "compact").toLowerCase();
+    const cardMin = Number.parseInt(params.get("cardmin") || "0", 10);
+    const useAnimation = (params.get("anim") || "on").toLowerCase() !== "off";
+
+    if (Number.isFinite(cardMin) && cardMin > 150) {
+      document.documentElement.style.setProperty("--card-min", `${cardMin}px`);
     }
 
-    const elGrid    = document.getElementById("grid");
-    const elUpdated = document.getElementById("updated");
-    const elClock   = document.getElementById("clock");
-    const elProgW   = document.getElementById("progWrap");
-    const elProg    = document.getElementById("progress");
+    const gridElement = document.getElementById("grid");
+    const updatedElement = document.getElementById("updated");
+    const clockElement = document.getElementById("clock");
+    const progressWrapElement = document.getElementById("progWrap");
+    const progressElement = document.getElementById("progress");
 
-    // hide progress when no rotation needed
-    elProgW.style.display = "none";
+    progressWrapElement.style.display = "none";
 
-    // -------- clock --------
-    function startClock(){
-      function tick(){
-        const d = new Date();
-        elClock.textContent = `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+    // ---------- Utility functions ----------
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function normalizeName(value) {
+      return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+    }
+
+    function splitIntoPages(items, size) {
+      const pages = [];
+      for (let index = 0; index < items.length; index += size) {
+        pages.push(items.slice(index, index + size));
       }
-      tick(); setInterval(tick, 15000);
+      return pages;
     }
 
-    // -------- utils --------
-    function norm(s){ return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,""); }
-    async function loadJSON(url){ const r = await fetch(url, {cache:"no-cache"}); if(!r.ok) throw new Error(url); return r.json(); }
-    const chunk = (arr, size) => arr.reduce((a,_,i)=> (i%size? a[a.length-1].push(arr[i]) : a.push([arr[i]]), a), []);
-
-    // ---- date/result helpers ----
-    function parseDateMMDDYY(s){
-      const m = /^(\d{2})\/(\d{2})\/(\d{2})$/.exec((s||"").trim());
-      if(!m) return null;
-      const [, mm, dd, yy] = m;
-      const yyyy = (+yy < 70) ? 2000 + (+yy) : 1900 + (+yy);
-      return new Date(yyyy, (+mm)-1, (+dd));
-    }
-    function isCompleted(row){
-      const score = String(row.Score||"").trim();
-      const wl    = String(row["W/L"]||"").trim().toUpperCase();
-      if (/\d/.test(score)) return true;               // any digit in score
-      if (wl === "W" || wl === "L" || wl === "T") return true;
-      return false;
-    }
-    function splitLastAndNext(rows){
-      const items = rows.map(r => ({ r, d: parseDateMMDDYY(r.Date), done: isCompleted(r) }))
-                        .filter(x => x.d && !isNaN(x.d)).sort((a,b)=> a.d - b.d);
-      const today = new Date(); today.setHours(0,0,0,0);
-      const pastDone = items.filter(x => x.done && x.d <= today);
-      const last = pastDone.length ? pastDone[pastDone.length-1].r : null;
-      const next = (items.find(x => !x.done && x.d >= today) || {}).r || null;
-      if (!last) { const anyDone = items.filter(x => x.done); if (anyDone.length) return { last:anyDone[anyDone.length-1].r, next }; }
-      return { last, next };
-    }
-
-    // NEW: compute team's record from its own W/L results (W/L/T) across completed games up to today.
-    function currentRecord(rows){
-      const today = new Date(); today.setHours(0,0,0,0);
-
-      const items = rows.map(r => ({
-          r,
-          d: parseDateMMDDYY(r.Date),
-          done: isCompleted(r)
-        }))
-        .filter(x => x.d && !isNaN(x.d))
-        .sort((a,b) => a.d - b.d);
-
-      const completed = items.filter(x => x.done && x.d <= today).map(x => x.r);
-
-      let w = 0, l = 0, t = 0;
-      for (const r of completed) {
-        const res = String(r["W/L"] || "").trim().toUpperCase();
-        if (res === "W") w++;
-        else if (res === "L") l++;
-        else if (res === "T") t++;
+    async function loadJson(url) {
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`Could not load ${url} (${response.status})`);
       }
-      if (w + l + t > 0) return t ? `${w}-${l}-${t}` : `${w}-${l}`;
+      return response.json();
+    }
 
-      // Fallback: sometimes the caption includes "(3-3)"
-      const disp = (items[0]?.r?._team_display) || (rows[0]?._team_display) || "";
-      const m = /\((\d+)-(\d+)(?:-(\d+))?\)/.exec(disp);
-      if (m) return m[3] ? `${m[1]}-${m[2]}-${m[3]}` : `${m[1]}-${m[2]}`;
+    function showStatus(message, isError = false) {
+      gridElement.innerHTML = "";
+      const box = document.createElement("div");
+      box.className = `status${isError ? " error" : ""}`;
+      box.textContent = message;
+      gridElement.appendChild(box);
+    }
+
+    // ---------- Clock ----------
+    function startClock() {
+      function tick() {
+        clockElement.textContent = new Intl.DateTimeFormat(undefined, {
+          hour: "numeric",
+          minute: "2-digit"
+        }).format(new Date());
+      }
+
+      tick();
+      window.setInterval(tick, 15000);
+    }
+
+    // ---------- Date and result helpers ----------
+    function parseGameDate(value) {
+      const text = String(value || "").trim();
+
+      // Preferred JSON format: MM/DD/YY
+      let match = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/.exec(text);
+      if (match) {
+        const month = Number(match[1]);
+        const day = Number(match[2]);
+        let year = Number(match[3]);
+        if (year < 100) year += year < 70 ? 2000 : 1900;
+        const date = new Date(year, month - 1, day);
+        return Number.isNaN(date.getTime()) ? null : date;
+      }
+
+      // Fallback if a raw new-site date ever reaches the front end: Fri 28 Aug
+      match = /^(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s+(\d{1,2})\s+([A-Za-z]{3})$/i.exec(text);
+      if (match) {
+        const months = {
+          jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+          jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+        };
+        const month = months[match[2].toLowerCase()];
+        if (month === undefined) return null;
+        return new Date(new Date().getFullYear(), month, Number(match[1]));
+      }
+
+      return null;
+    }
+
+    function normalizedScore(value) {
+      return String(value || "")
+        .replace(/&ndash;|&#8211;/gi, "-")
+        .replace(/[–—]/g, "-")
+        .trim();
+    }
+
+    function isCompleted(row) {
+      const score = normalizedScore(row.Score);
+      const result = String(row["W/L"] || "").trim().toUpperCase();
+
+      if (/^\d+\s*-\s*\d+$/.test(score)) return true;
+      return result === "W" || result === "L" || result === "T";
+    }
+
+    function splitLastAndNext(rows) {
+      const items = rows
+        .map(row => ({ row, date: parseGameDate(row.Date), done: isCompleted(row) }))
+        .filter(item => item.date && !Number.isNaN(item.date.getTime()))
+        .sort((a, b) => a.date - b.date);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const completed = items.filter(item => item.done && item.date <= today);
+      const last = completed.length ? completed[completed.length - 1].row : null;
+      const nextItem = items.find(item => !item.done && item.date >= today);
+
+      return { last, next: nextItem ? nextItem.row : null };
+    }
+
+    function currentRecord(rows) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const completedRows = rows
+        .map(row => ({ row, date: parseGameDate(row.Date), done: isCompleted(row) }))
+        .filter(item => item.date && item.done && item.date <= today)
+        .sort((a, b) => a.date - b.date)
+        .map(item => item.row);
+
+      let wins = 0;
+      let losses = 0;
+      let ties = 0;
+
+      for (const row of completedRows) {
+        const result = String(row["W/L"] || "").trim().toUpperCase();
+        if (result === "W") wins += 1;
+        else if (result === "L") losses += 1;
+        else if (result === "T") ties += 1;
+      }
+
+      if (wins + losses + ties > 0) {
+        return ties ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`;
+      }
+
+      const displayName = rows[0]?._team_display || "";
+      const match = /\((\d+)-(\d+)(?:-(\d+))?\)\s*$/.exec(displayName);
+      if (match) {
+        return match[3] ? `${match[1]}-${match[2]}-${match[3]}` : `${match[1]}-${match[2]}`;
+      }
 
       return "0-0";
     }
 
-    // ---- card renderers ----
-    function line(label, value){
-      return `<div class="rowline"><div class="label">${label}</div><div class="value">${value ?? "-"}</div></div>`;
+    // ---------- Card rendering ----------
+    function line(label, value) {
+      return `<div class="rowline"><div class="label">${escapeHtml(label)}</div><div class="value">${escapeHtml(value || "-")}</div></div>`;
     }
-    function buildCardCompact(rowLast, rowNext, record){
-      const rowAny = rowLast || rowNext || {};
-      const team = rowAny._team || "Unknown";
-      const cls  = rowAny._class || "?";
-      const lastBlock = rowLast ? (
-        line("Date", rowLast.Date) + line("Opponent", rowLast.Opponent) + line("Score", rowLast.Score || "-") + line("W/L", rowLast["W/L"] || "-")
-      ) : `<div class="sub">—</div><div class="sub">No results yet.</div>`;
-      const nextBlock = rowNext ? (
-        line("Date", rowNext.Date) + line("Opponent", rowNext.Opponent)
-      ) : `<div class="sub">—</div><div class="sub">No future games scheduled.</div>`;
-      const div = document.createElement("div");
-      div.className = "card";
-      div.innerHTML = `
-        <div class="team">${team}</div>
-        <div class="sub">Class ${cls} · Record ${record}</div>
+
+    function buildCompactCard(lastGame, nextGame, record) {
+      const anyGame = lastGame || nextGame || {};
+      const team = anyGame._team || "Unknown";
+      const teamClass = anyGame._class || "?";
+
+      const lastBlock = lastGame
+        ? line("Date", lastGame.Date)
+          + line("Opponent", lastGame.Opponent)
+          + line("Score", normalizedScore(lastGame.Score) || "-")
+          + line("W/L", lastGame["W/L"] || "-")
+        : `<div class="sub">No results yet.</div>`;
+
+      const nextBlock = nextGame
+        ? line("Date", nextGame.Date) + line("Opponent", nextGame.Opponent)
+        : `<div class="sub">No future games scheduled.</div>`;
+
+      const card = document.createElement("article");
+      card.className = "card";
+      card.innerHTML = `
+        <div class="team">${escapeHtml(team)}</div>
+        <div class="sub">Class ${escapeHtml(teamClass)} · Record ${escapeHtml(record)}</div>
         <div class="section">Last Game</div>
         ${lastBlock}
-        <div class="section" style="margin-top:10px;">Next Game</div>
+        <div class="section" style="margin-top:10px">Next Game</div>
         ${nextBlock}
       `;
-      return div;
+      return card;
     }
-    function buildCardFull(rowLast, rowNext, record){
-      const rowAny = rowLast || rowNext || {};
-      const team = rowAny._team || "Unknown";
-      const cls  = rowAny._class || "?";
-      function rowTable(r){
-        if(!r) return '<div class="sub">—</div>';
-        const order = ["Date","Opponent","Class","W-L","W/L","Score","Site","Time","Home/Away"]; // no Div/Points
-        const keys = order.filter(k => Object.prototype.hasOwnProperty.call(r,k));
-        const rowsHtml = keys.map(k => `<tr><th>${k}</th><td>${r[k]}</td></tr>`).join("");
-        return `<table class="table">${rowsHtml}</table>`;
+
+    function buildFullCard(lastGame, nextGame, record) {
+      const anyGame = lastGame || nextGame || {};
+      const team = anyGame._team || "Unknown";
+      const teamClass = anyGame._class || "?";
+
+      function gameTable(game) {
+        if (!game) return `<div class="sub">No game available.</div>`;
+
+        const order = ["Date", "Opponent", "Class", "W-L", "W/L", "Score", "Site", "Time", "Home/Away"];
+        const keys = order.filter(key => Object.prototype.hasOwnProperty.call(game, key));
+        const rows = keys.map(key => {
+          const value = key === "Score" ? normalizedScore(game[key]) : game[key];
+          return `<tr><th>${escapeHtml(key)}</th><td>${escapeHtml(value || "-")}</td></tr>`;
+        }).join("");
+
+        return `<table class="table"><tbody>${rows}</tbody></table>`;
       }
-      const div = document.createElement("div");
-      div.className = "card";
-      div.innerHTML = `
-        <div class="team">${team}</div>
-        <div class="sub">Class ${cls} · Record ${record}</div>
-        <div class="sub" style="margin-top:12px;font-weight:600;">Last Game</div>
-        ${rowTable(rowLast)} ${!rowLast ? `<div class="sub">No results yet.</div>` : ""}
-        <div class="sub" style="margin-top:12px;font-weight:600;">Next Game</div>
-        ${rowTable(rowNext)} ${!rowNext ? `<div class="sub">No future games scheduled.</div>` : ""}
+
+      const card = document.createElement("article");
+      card.className = "card";
+      card.innerHTML = `
+        <div class="team">${escapeHtml(team)}</div>
+        <div class="sub">Class ${escapeHtml(teamClass)} · Record ${escapeHtml(record)}</div>
+        <div class="section" style="margin-top:12px">Last Game</div>
+        ${gameTable(lastGame)}
+        <div class="section" style="margin-top:12px">Next Game</div>
+        ${gameTable(nextGame)}
       `;
-      return div;
+      return card;
     }
 
-    // ---- boot / paging (CSS progress + setTimeout rotation) ----
-    (async function init(){
+    function buildMissingCard(teamName) {
+      const card = document.createElement("article");
+      card.className = "card";
+      card.innerHTML = `
+        <div class="team">${escapeHtml(teamName)}</div>
+        <div class="sub">No match found. Check the school name in teams.json.</div>
+      `;
+      return card;
+    }
+
+    // ---------- App startup and page rotation ----------
+    async function init() {
       startClock();
-      const [teamsCfg, data] = await Promise.all([
-        loadJSON("./teams.json"),
-        loadJSON("./data/football.json").catch(()=>({updated:0, by_team:{}}))
-      ]);
-      elUpdated.textContent = data.updated ? new Date(data.updated*1000).toLocaleString() : "(no data yet)";
+      showStatus("Loading football schedules...");
 
-      const wanted = (teamsCfg[office] || []).map(t => ({ name: t, key: norm(t) }));
-      if(!wanted.length){
-        document.getElementById("grid").innerHTML = `<div class="sub" style="padding:0 28px">Add teams for "${office}" in <code>teams.json</code>.</div>`;
-        return;
-      }
+      try {
+        const [teamsConfig, data] = await Promise.all([
+          loadJson("./teams.json"),
+          loadJson("./data/football.json")
+        ]);
 
-      const pages = chunk(wanted, perPage);
-      let pageIdx = 0;
+        updatedElement.textContent = data.updated
+          ? new Date(data.updated * 1000).toLocaleString()
+          : "unknown";
 
-      function renderPage(){
-        if (anim) { elGrid.classList.remove('fade-in'); elGrid.classList.add('fade-out'); }
-        setTimeout(() => {
-          elGrid.innerHTML = "";
-          const slice = pages[pageIdx] || [];
-          for(const {name, key} of slice){
-            const rows = (data.by_team && data.by_team[key]) || [];
-            if(!rows.length){
-              const card = document.createElement("div");
-              card.className = "card";
-              card.innerHTML = `
-                <div class="team">${name}</div>
-                <div class="sub">No match found yet. Ensure name matches NSAA caption (without record).</div>
-              `;
-              elGrid.appendChild(card);
-            } else {
-              const pick = splitLastAndNext(rows);
-              const rec  = currentRecord(rows);
-              const card = (mode === "full")
-                ? buildCardFull(pick.last, pick.next, rec)
-                : buildCardCompact(pick.last, pick.next, rec);
-              elGrid.appendChild(card);
-            }
+        const configuredTeams = Array.isArray(teamsConfig[office]) ? teamsConfig[office] : [];
+        const wantedTeams = configuredTeams.map(name => ({
+          name,
+          key: normalizeName(name)
+        }));
+
+        if (!wantedTeams.length) {
+          showStatus(`No teams are configured for "${office}". Add this office key to teams.json.`, true);
+          return;
+        }
+
+        const pages = splitIntoPages(wantedTeams, perPage);
+        let pageIndex = 0;
+        let warningTimer = null;
+
+        function renderPage() {
+          if (useAnimation) {
+            gridElement.classList.remove("fade-in");
+            gridElement.classList.add("fade-out");
           }
-          if (anim) { elGrid.classList.remove('fade-out'); elGrid.classList.add('fade-in'); }
-        }, anim ? 350 : 0);
-      }
 
-      function startProgress(){
-        if (pages.length <= 1){ elProgW.style.display = "none"; return; }
-        elProgW.style.display = "block";
-        // restart keyframe animation by resetting the property
-        elProg.style.animation = "none";
-        // force reflow so animation restarts reliably in signage players
-        void elProg.offsetWidth;
-        elProg.style.animation = `rotProgress ${rotateS}s linear forwards`;
-        // turn amber for the last ~1.5s using a delayed class
-        setTimeout(() => { elProg.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--warn'); }, Math.max(0, (rotateS*1000)-1500));
-        // revert color at next start (handled when we reset style)
-        setTimeout(() => { elProg.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--accent'); }, rotateS*1000 + 50);
-      }
+          window.setTimeout(() => {
+            gridElement.innerHTML = "";
+            const page = pages[pageIndex] || [];
 
-      function scheduleNext(){
-        startProgress();
-        // rotate after rotateS seconds
-        setTimeout(() => {
-          pageIdx = (pageIdx + 1) % pages.length;
-          renderPage();
-          scheduleNext(); // chain the next rotation
-        }, rotateS * 1000);
-      }
+            for (const configuredTeam of page) {
+              const rows = data.by_team?.[configuredTeam.key] || [];
 
-      // initial render & rotation
-      renderPage();
-      if (pages.length > 1) scheduleNext();
-    })();
+              if (!rows.length) {
+                gridElement.appendChild(buildMissingCard(configuredTeam.name));
+                continue;
+              }
+
+              const games = splitLastAndNext(rows);
+              const record = currentRecord(rows);
+              const card = mode === "full"
+                ? buildFullCard(games.last, games.next, record)
+                : buildCompactCard(games.last, games.next, record);
+
+              gridElement.appendChild(card);
+            }
+
+            if (useAnimation) {
+              gridElement.classList.remove("fade-out");
+              gridElement.classList.add("fade-in");
+            }
+          }, useAnimation ? 350 : 0);
+        }
+
+        function startProgress() {
+          if (pages.length <= 1) {
+            progressWrapElement.style.display = "none";
+            return;
+          }
+
+          progressWrapElement.style.display = "block";
+          progressElement.style.backgroundColor = "var(--accent)";
+          progressElement.style.animation = "none";
+          void progressElement.offsetWidth;
+          progressElement.style.animation = `rotProgress ${rotateSeconds}s linear forwards`;
+
+          if (warningTimer) window.clearTimeout(warningTimer);
+          warningTimer = window.setTimeout(() => {
+            progressElement.style.backgroundColor = "var(--warn)";
+          }, Math.max(0, rotateSeconds * 1000 - 1500));
+        }
+
+        function scheduleNextPage() {
+          startProgress();
+          window.setTimeout(() => {
+            pageIndex = (pageIndex + 1) % pages.length;
+            renderPage();
+            scheduleNextPage();
+          }, rotateSeconds * 1000);
+        }
+
+        renderPage();
+        if (pages.length > 1) scheduleNextPage();
+      } catch (error) {
+        console.error(error);
+        updatedElement.textContent = "unavailable";
+        showStatus(`Schedule data could not be loaded. ${error.message}`, true);
+      }
+    }
+
+    init();
   </script>
 </body>
 </html>
