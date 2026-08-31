@@ -30,7 +30,7 @@ jobs:
 
       - name: Run NSAA Scraper
         run: |
-          python scrape_nsaa.py
+          python scraper/scrape_nsaa.py
 
       - name: Commit Updated Football Data
         run: |
