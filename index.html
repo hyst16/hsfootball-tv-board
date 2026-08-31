@@ -4,11 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Local HS Football</title>
-
-  <!-- TV auto-refresh every 10 minutes -->
   <meta http-equiv="refresh" content="600">
 
   <style>
+    /*
+      To use the licensed Sequel 100 Black 85 webfont, place the WOFF2 file at:
+      fonts/Sequel100Black85.woff2
+    */
+    @font-face {
+      font-family: "Sequel 100 Black 85";
+      src: url("./fonts/Sequel100Black85.woff2") format("woff2");
+      font-style: normal;
+      font-weight: 900;
+      font-display: swap;
+    }
+
     :root {
       --bg: #0b0e13;
       --card: #121722;
@@ -16,8 +26,8 @@
       --muted: #9fb0c2;
       --accent: #4fd1c5;
       --warn: #f59e0b;
-      --danger: #f87171;
       --card-min: 320px;
+      --app-font: "Sequel 100 Black 85", "Arial Black", Arial, sans-serif;
     }
 
     * { box-sizing: border-box; }
@@ -27,7 +37,8 @@
       margin: 0;
       background: var(--bg);
       color: var(--ink);
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: var(--app-font);
+      font-weight: 900;
     }
 
     body { min-height: 100vh; }
@@ -49,8 +60,8 @@
     .title {
       grid-column: 1 / 2;
       font-size: 32px;
-      font-weight: 800;
-      letter-spacing: .3px;
+      line-height: 1;
+      letter-spacing: -.035em;
     }
 
     .clock {
@@ -106,7 +117,8 @@
     .team {
       margin: 4px 0 2px;
       font-size: 22px;
-      font-weight: 800;
+      line-height: 1.05;
+      letter-spacing: -.03em;
     }
 
     .sub {
@@ -119,7 +131,6 @@
       margin-top: 8px;
       color: var(--muted);
       font-size: 13px;
-      font-weight: 700;
     }
 
     .rowline {
@@ -133,7 +144,6 @@
       flex: 0 0 auto;
       color: var(--muted);
       font-size: 12px;
-      font-weight: 600;
     }
 
     .value {
@@ -161,7 +171,6 @@
       width: 92px;
       color: var(--muted);
       font-size: 12px;
-      font-weight: 600;
       letter-spacing: .3px;
       text-align: left;
     }
@@ -178,8 +187,6 @@
       color: #fecaca;
       border: 1px solid rgba(248,113,113,.35);
     }
-
-    code { color: var(--accent); }
 
     footer {
       padding: 8px 16px 16px;
@@ -200,7 +207,6 @@
     }
   </style>
 </head>
-
 <body>
   <div class="wrap">
     <header>
@@ -213,15 +219,12 @@
 
     <main class="grid" id="grid" aria-live="polite"></main>
 
-    <footer>
-      Data updated <span id="updated">loading...</span>
-    </footer>
+    <footer>Data updated <span id="updated">loading...</span></footer>
   </div>
 
   <script>
     "use strict";
 
-    // ---------- URL settings ----------
     const params = new URLSearchParams(window.location.search);
     const office = params.get("office") || "mead-office";
     const perPage = Math.max(1, Number.parseInt(params.get("per") || "2", 10));
@@ -239,10 +242,8 @@
     const clockElement = document.getElementById("clock");
     const progressWrapElement = document.getElementById("progWrap");
     const progressElement = document.getElementById("progress");
-
     progressWrapElement.style.display = "none";
 
-    // ---------- Utility functions ----------
     function escapeHtml(value) {
       return String(value ?? "")
         .replaceAll("&", "&amp;")
@@ -266,9 +267,7 @@
 
     async function loadJson(url) {
       const response = await fetch(url, { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error(`Could not load ${url} (${response.status})`);
-      }
+      if (!response.ok) throw new Error(`Could not load ${url} (${response.status})`);
       return response.json();
     }
 
@@ -280,7 +279,6 @@
       gridElement.appendChild(box);
     }
 
-    // ---------- Clock ----------
     function startClock() {
       function tick() {
         clockElement.textContent = new Intl.DateTimeFormat(undefined, {
@@ -288,17 +286,14 @@
           minute: "2-digit"
         }).format(new Date());
       }
-
       tick();
       window.setInterval(tick, 15000);
     }
 
-    // ---------- Date and result helpers ----------
     function parseGameDate(value) {
       const text = String(value || "").trim();
-
-      // Preferred JSON format: MM/DD/YY
       let match = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/.exec(text);
+
       if (match) {
         const month = Number(match[1]);
         const day = Number(match[2]);
@@ -308,7 +303,6 @@
         return Number.isNaN(date.getTime()) ? null : date;
       }
 
-      // Fallback if a raw new-site date ever reaches the front end: Fri 28 Aug
       match = /^(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s+(\d{1,2})\s+([A-Za-z]{3})$/i.exec(text);
       if (match) {
         const months = {
@@ -327,15 +321,30 @@
       return String(value || "")
         .replace(/&ndash;|&#8211;/gi, "-")
         .replace(/[–—]/g, "-")
+        .replace(/\s+/g, "")
         .trim();
     }
 
-    function isCompleted(row) {
-      const score = normalizedScore(row.Score);
-      const result = String(row["W/L"] || "").trim().toUpperCase();
+    function deriveWL(score) {
+      const match = /^(\d+)-(\d+)$/.exec(normalizedScore(score));
+      if (!match) return "-";
+      const us = Number(match[1]);
+      const them = Number(match[2]);
+      if (us > them) return "W";
+      if (us < them) return "L";
+      return "T";
+    }
 
-      if (/^\d+\s*-\s*\d+$/.test(score)) return true;
-      return result === "W" || result === "L" || result === "T";
+    function isCompleted(row) {
+      const storedResult = String(row["W/L"] || "").trim().toUpperCase();
+      return deriveWL(row.Score) !== "-" || ["W", "L", "T"].includes(storedResult);
+    }
+
+    function displayWL(row) {
+      const derived = deriveWL(row?.Score);
+      if (derived !== "-") return derived;
+      const stored = String(row?.["W/L"] || "").trim().toUpperCase();
+      return ["W", "L", "T"].includes(stored) ? stored : "-";
     }
 
     function splitLastAndNext(rows) {
@@ -350,33 +359,24 @@
       const completed = items.filter(item => item.done && item.date <= today);
       const last = completed.length ? completed[completed.length - 1].row : null;
       const nextItem = items.find(item => !item.done && item.date >= today);
-
       return { last, next: nextItem ? nextItem.row : null };
     }
 
     function currentRecord(rows) {
-  let wins = 0;
-  let losses = 0;
+      let wins = 0;
+      let losses = 0;
+      let ties = 0;
 
-  rows.forEach(row => {
-    const score = String(row.Score || "")
-      .replace(/[–—]/g, "-");
+      for (const row of rows) {
+        const result = displayWL(row);
+        if (result === "W") wins += 1;
+        else if (result === "L") losses += 1;
+        else if (result === "T") ties += 1;
+      }
 
-    const m = score.match(/^(\d+)\-(\d+)$/);
+      return ties ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`;
+    }
 
-    if (!m) return;
-
-    const us = parseInt(m[1], 10);
-    const them = parseInt(m[2], 10);
-
-    if (us > them) wins++;
-    else if (us < them) losses++;
-  });
-
-  return `${wins}-${losses}`;
-}
-
-    // ---------- Card rendering ----------
     function line(label, value) {
       return `<div class="rowline"><div class="label">${escapeHtml(label)}</div><div class="value">${escapeHtml(value || "-")}</div></div>`;
     }
@@ -390,7 +390,7 @@
         ? line("Date", lastGame.Date)
           + line("Opponent", lastGame.Opponent)
           + line("Score", normalizedScore(lastGame.Score) || "-")
-          + line("W/L", lastGame["W/L"] || "-")
+          + line("W/L", displayWL(lastGame))
         : `<div class="sub">No results yet.</div>`;
 
       const nextBlock = nextGame
@@ -418,13 +418,21 @@
       function gameTable(game) {
         if (!game) return `<div class="sub">No game available.</div>`;
 
-        const order = ["Date", "Opponent", "Class", "W-L", "W/L", "Score", "Site", "Time", "Home/Away"];
-        const keys = order.filter(key => Object.prototype.hasOwnProperty.call(game, key));
-        const rows = keys.map(key => {
-          const value = key === "Score" ? normalizedScore(game[key]) : game[key];
-          return `<tr><th>${escapeHtml(key)}</th><td>${escapeHtml(value || "-")}</td></tr>`;
-        }).join("");
+        const values = {
+          Date: game.Date,
+          Opponent: game.Opponent,
+          Class: game.Class,
+          "W-L": game["W-L"],
+          "W/L": displayWL(game),
+          Score: normalizedScore(game.Score),
+          Site: game.Site,
+          Time: game.Time,
+          "Home/Away": game["Home/Away"]
+        };
 
+        const order = ["Date", "Opponent", "Class", "W-L", "W/L", "Score", "Site", "Time", "Home/Away"];
+        const keys = order.filter(key => Object.prototype.hasOwnProperty.call(game, key) || ["W/L", "Score"].includes(key));
+        const rows = keys.map(key => `<tr><th>${escapeHtml(key)}</th><td>${escapeHtml(values[key] || "-")}</td></tr>`).join("");
         return `<table class="table"><tbody>${rows}</tbody></table>`;
       }
 
@@ -451,7 +459,6 @@
       return card;
     }
 
-    // ---------- App startup and page rotation ----------
     async function init() {
       startClock();
       showStatus("Loading football schedules...");
@@ -467,10 +474,7 @@
           : "unknown";
 
         const configuredTeams = Array.isArray(teamsConfig[office]) ? teamsConfig[office] : [];
-        const wantedTeams = configuredTeams.map(name => ({
-          name,
-          key: normalizeName(name)
-        }));
+        const wantedTeams = configuredTeams.map(name => ({ name, key: normalizeName(name) }));
 
         if (!wantedTeams.length) {
           showStatus(`No teams are configured for "${office}". Add this office key to teams.json.`, true);
@@ -493,7 +497,6 @@
 
             for (const configuredTeam of page) {
               const rows = data.by_team?.[configuredTeam.key] || [];
-
               if (!rows.length) {
                 gridElement.appendChild(buildMissingCard(configuredTeam.name));
                 continue;
@@ -504,7 +507,6 @@
               const card = mode === "full"
                 ? buildFullCard(games.last, games.next, record)
                 : buildCompactCard(games.last, games.next, record);
-
               gridElement.appendChild(card);
             }
 
