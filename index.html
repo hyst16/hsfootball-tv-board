@@ -38,7 +38,7 @@
       background: var(--bg);
       color: var(--ink);
       font-family: var(--app-font);
-      font-weight: 900;
+      font-weight: 700;
     }
 
     body { min-height: 100vh; }
@@ -46,7 +46,6 @@
     .wrap {
       display: flex;
       flex-direction: column;
-      min-height: 100vh;
     }
 
     header {
@@ -88,7 +87,7 @@
 
     .grid {
       display: grid;
-      flex: 1;
+      align-content: start;
       grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
       gap: 16px;
       padding: 8px 28px 28px;
@@ -107,7 +106,8 @@
     }
 
     .card {
-      min-height: 200px;
+      height: fit-content;
+      min-height: unset;
       padding: 16px 16px 14px;
       background: var(--card);
       border-radius: 18px;
@@ -116,7 +116,8 @@
 
     .team {
       margin: 4px 0 2px;
-      font-size: 22px;
+      font-size: 24px;
+      font-weight: 900;
       line-height: 1.05;
       letter-spacing: -.03em;
     }
