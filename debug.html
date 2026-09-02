@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -6,7 +6,7 @@
   <title>HS Football TV — Debug / Teams Builder</title>
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 16px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr 360px; gap: 12px; align-items: start; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr 380px; gap: 12px; align-items: start; }
     .panel { border: 1px solid #ddd; padding: 12px; border-radius: 6px; background: #fff }
     h2 { margin: 0 0 8px 0 }
     .team { display:flex; align-items:center; gap:8px; padding:6px; border-bottom:1px solid #f3f3f3 }
@@ -23,11 +23,13 @@
     .hint { font-size:12px; color:#666 }
     #classes { margin-bottom:8px }
     .search { margin-bottom:8px }
+    .office-card { margin-bottom:8px; border:1px solid #eee; padding:8px; border-radius:6px }
+    .office-header { display:flex; justify-content:space-between; align-items:center }
   </style>
 </head>
 <body>
   <h1>Debug / Teams Builder</h1>
-  <p class="small">This page reads data/football.json (scraper output) and teams.json (your office mapping). Use the builder to pick teams and generate teams.json entries.</p>
+  <p class="small">This page reads data/football.json (scraper output) and teams.json (your office mapping). Use the builder to pick teams and generate teams.json entries. Quick actions: click Add next to a team to add it to the selected office; use Remove inside an office to delete a team.</p>
   <div id="meta" class="hint">Loading data...</div>
   <div class="grid">
     <div class="panel">
@@ -41,11 +43,15 @@
 
     <div class="panel">
       <h2>Office builder</h2>
-      <div class="small">Selected teams:</div>
+      <label class="small">Choose office to edit (or leave blank to create new):</label>
+      <select id="officeSelect"><option value="">(Create new office)</option></select>
+      <div class="small" style="margin-top:8px">Selected teams for office (click Remove to delete):</div>
       <div id="selectedList" style="min-height:60px; padding:6px; border:1px dashed #eee; margin-bottom:8px"></div>
+
       <label class="small">Office key (slug):</label>
       <input id="officeKey" placeholder="mead-office" />
       <div class="controls">
+        <button id="applyChanges">Apply changes (update preview)</button>
         <button id="copyJson">Copy JSON</button>
         <button id="downloadJson">Download</button>
         <a id="editOnGitHub" class="small" target="_blank" rel="noopener noreferrer">Edit on GitHub</a>
@@ -55,7 +61,7 @@
     </div>
 
     <div class="panel">
-      <h2>Validate teams.json</h2>
+      <h2>Offices & validation</h2>
       <div id="validateList">Loading...</div>
     </div>
   </div>
@@ -64,7 +70,7 @@
     // Utility: normalize team names for matching
     function normalize(s){ return (s||"").toLowerCase().replace(/[^a-z0-9\s]/g,'').replace(/\s+/g,' ').trim(); }
     function slug(s){ return (s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
-    
+  
     // Levenshtein distance for suggestions
     function levenshtein(a,b){
       if(a===b) return 0;
@@ -102,8 +108,13 @@
         const classes = Array.from(new Set(teams.map(t=>t.class).filter(Boolean))).sort();
         renderClassFilters(classes);
         renderTeamList(teams, normIndex, tResp);
-        renderValidation(teams, normIndex, tResp);
-        setupBuilder(teams, normIndex, tResp);
+        CURRENT_TEAMSJSON = Object.assign({}, tResp || {});
+        renderOfficeSelectors(CURRENT_TEAMSJSON);
+        renderOfficeEditors(CURRENT_TEAMSJSON, normIndex);
+        updatePreview();
+
+        // wire actions
+        setupBuilder(teams, normIndex, CURRENT_TEAMSJSON);
       }catch(err){ metaEl.textContent = 'Error loading data: '+err }
     }
 
@@ -135,33 +146,18 @@
       if(list.length===0) { container.textContent='No teams'; return }
       list.forEach(t=>{
         const row = document.createElement('div'); row.className='team';
-        const cb = document.createElement('input'); cb.type='checkbox'; cb.dataset.name=t.display;
-        cb.addEventListener('change', onSelectChange);
         const name = document.createElement('div'); name.className='name'; name.textContent = t.display + ' ('+t.class+')';
+        const addBtn = document.createElement('button'); addBtn.textContent='Add'; addBtn.dataset.name=t.display; addBtn.addEventListener('click', ()=>addToSelectedOffice(t.display));
         const normalized = normalize(t.display);
         const badge = document.createElement('div'); badge.className='badge ok'; badge.textContent='Found';
-        // marker if present in teams.json
         const inTeamsJson = Object.values(CURRENT_TEAMSJSON).some(arr=> arr.map(normalize).includes(normalized));
         if(!inTeamsJson) badge.className='badge warn', badge.textContent='Not in teams.json';
-        row.appendChild(cb); row.appendChild(name); row.appendChild(badge);
+        row.appendChild(name); row.appendChild(addBtn); row.appendChild(badge);
         container.appendChild(row);
       });
     }
 
     document.getElementById('filter').addEventListener('input', ()=>filterAndRender());
-
-    function onSelectChange(){
-      const selected = Array.from(document.querySelectorAll('#teamList input[type=checkbox]:checked')).map(i=>i.dataset.name);
-      renderSelected(selected);
-    }
-
-    function renderSelected(list){
-      const el = document.getElementById('selectedList'); el.innerHTML='';
-      list.forEach(n=>{ const d=document.createElement('div'); d.textContent=n; el.appendChild(d) });
-      const suggestedKey = list.length? slug(list[0]) : '';
-      const officeKeyEl = document.getElementById('officeKey'); if(!officeKeyEl.value) officeKeyEl.value = suggestedKey + (suggestedKey?'-office':'');
-      updatePreview();
-    }
 
     function setupBuilder(teams, normIndex, teamsJson){
       document.getElementById('copyJson').addEventListener('click', ()=>{
@@ -174,45 +170,101 @@
       });
       const editLink = document.getElementById('editOnGitHub');
       editLink.href = 'https://github.com/hyst16/hsfootball-tv-board/edit/main/teams.json';
-      document.getElementById('officeKey').addEventListener('input', updatePreview);
+      document.getElementById('officeKey').addEventListener('input', ()=>{ document.getElementById('officeSelect').value=''; });
+      document.getElementById('applyChanges').addEventListener('click', ()=>{ applyOfficeKeyChange(); });
     }
 
     function buildPayload(){
-      const key = document.getElementById('officeKey').value || 'new-office';
-      const selected = Array.from(document.querySelectorAll('#teamList input[type=checkbox]:checked')).map(i=>i.dataset.name);
-      const payload = Object.assign({}, CURRENT_TEAMSJSON);
-      payload[key] = selected;
-      return payload;
+      return Object.assign({}, CURRENT_TEAMSJSON);
     }
 
     function updatePreview(){ document.getElementById('preview').textContent = JSON.stringify(buildPayload(), null, 2); }
 
-    function renderValidation(teams, normIndex, teamsJson){
+    function renderOfficeSelectors(teamsJson){
+      const sel = document.getElementById('officeSelect'); sel.innerHTML='';
+      const defaultOpt = document.createElement('option'); defaultOpt.value=''; defaultOpt.textContent='(Create new office)'; sel.appendChild(defaultOpt);
+      Object.keys(teamsJson||{}).sort().forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent=k; sel.appendChild(o); });
+      sel.addEventListener('change', ()=>{
+        const key = sel.value; document.getElementById('officeKey').value = key || ''; renderSelectedForOffice(key);
+      });
+    }
+
+    function renderOfficeEditors(teamsJson, normIndex){
       const out = document.getElementById('validateList'); out.innerHTML='';
       const keys = Object.keys(teamsJson||{}).sort();
       if(keys.length===0){ out.textContent='No teams.json entries found'; return }
       keys.forEach(k=>{
         const arr = teamsJson[k] || [];
-        const div = document.createElement('div'); div.style.borderBottom='1px solid #eee'; div.style.padding='8px 0';
-        const h = document.createElement('div'); h.textContent = k; h.style.fontWeight='600'; div.appendChild(h);
+        const card = document.createElement('div'); card.className='office-card';
+        const header = document.createElement('div'); header.className='office-header';
+        const title = document.createElement('div'); title.textContent = k; title.style.fontWeight='600'; header.appendChild(title);
+        const actions = document.createElement('div');
+        const editBtn = document.createElement('button'); editBtn.textContent='Edit'; editBtn.addEventListener('click', ()=>{ document.getElementById('officeSelect').value=k; document.getElementById('officeKey').value=k; renderSelectedForOffice(k); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+        const copyBtn = document.createElement('button'); copyBtn.textContent='Copy'; copyBtn.addEventListener('click', ()=>{ navigator.clipboard.writeText(JSON.stringify({ [k]: teamsJson[k] }, null,2)); alert('Copied office JSON'); });
+        actions.appendChild(editBtn); actions.appendChild(copyBtn);
+        header.appendChild(actions); card.appendChild(header);
         arr.forEach(name=>{
           const n = normalize(name);
           const found = Object.keys(normIndex).includes(n);
-          const row = document.createElement('div'); row.style.display='flex'; row.style.alignItems='center'; row.style.gap='8px';
+          const row = document.createElement('div'); row.style.display='flex'; row.style.alignItems='center'; row.style.gap='8px'; row.style.marginTop='6px';
           const nm = document.createElement('div'); nm.textContent = name; nm.className='small'; nm.style.flex='1';
           const status = document.createElement('div'); status.className='badge ' + (found? 'ok':'missing'); status.textContent = found? 'Found':'Missing';
           row.appendChild(nm); row.appendChild(status);
           if(!found){
-            // suggest closest
-            const candidates = Object.keys(normIndex);
-            let best=null, bestD=1e9; candidates.forEach(c=>{ const d = levenshtein(n,c); if(d<bestD){ bestD=d; best=c } });
-            const suggestion = document.createElement('div'); suggestion.className='hint'; suggestion.textContent = 'Suggestion: ' + (best? normIndex[best].display : 'N/A');
-            row.appendChild(suggestion);
+            const select = document.createElement('select'); select.className='small'; const placeholder = document.createElement('option'); placeholder.value=''; placeholder.textContent='Replace with...'; select.appendChild(placeholder);
+            const candidates = Object.keys(normIndex).map(k=>normIndex[k].display).sort(); candidates.slice(0,200).forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; select.appendChild(o); });
+            const replaceBtn = document.createElement('button'); replaceBtn.textContent='Replace'; replaceBtn.addEventListener('click', ()=>{ if(!select.value) return alert('Choose a replacement'); replaceTeamInOffice(k, name, select.value); });
+            row.appendChild(select); row.appendChild(replaceBtn);
           }
-          div.appendChild(row);
+          card.appendChild(row);
         });
-        out.appendChild(div);
+        out.appendChild(card);
       });
+    }
+
+    function renderSelectedForOffice(key){
+      const el = document.getElementById('selectedList'); el.innerHTML='';
+      if(!key){ el.textContent='Select an existing office or create a new one'; updatePreview(); return }
+      const arr = CURRENT_TEAMSJSON[key] || [];
+      arr.forEach(name=>{
+        const row = document.createElement('div'); row.style.display='flex'; row.style.alignItems='center'; row.style.gap='8px';
+        const d = document.createElement('div'); d.textContent = name; d.style.flex='1';
+        const rm = document.createElement('button'); rm.textContent='Remove'; rm.addEventListener('click', ()=>{ removeFromOffice(key, name); });
+        row.appendChild(d); row.appendChild(rm); el.appendChild(row);
+      });
+      updatePreview();
+    }
+
+    function addToSelectedOffice(name){
+      const sel = document.getElementById('officeSelect'); const key = sel.value || document.getElementById('officeKey').value || (slug(name)+'-office');
+      if(!CURRENT_TEAMSJSON[key]) CURRENT_TEAMSJSON[key]=[];
+      if(CURRENT_TEAMSJSON[key].map(normalize).includes(normalize(name))) return alert('Team already in this office');
+      CURRENT_TEAMSJSON[key].push(name);
+      renderOfficeEditors(CURRENT_TEAMSJSON, CURRENT_NORM); renderSelectedForOffice(key); renderOfficeSelectors(CURRENT_TEAMSJSON); updatePreview();
+    }
+
+    function removeFromOffice(key, name){
+      CURRENT_TEAMSJSON[key] = (CURRENT_TEAMSJSON[key]||[]).filter(n=> normalize(n)!==normalize(name));
+      renderOfficeEditors(CURRENT_TEAMSJSON, CURRENT_NORM); renderSelectedForOffice(key); renderOfficeSelectors(CURRENT_TEAMSJSON); updatePreview();
+    }
+
+    function replaceTeamInOffice(key, oldName, newName){
+      CURRENT_TEAMSJSON[key] = (CURRENT_TEAMSJSON[key]||[]).map(n=> normalize(n)===normalize(oldName)? newName: n);
+      renderOfficeEditors(CURRENT_TEAMSJSON, CURRENT_NORM); renderSelectedForOffice(key); updatePreview();
+    }
+
+    function applyOfficeKeyChange(){
+      const sel = document.getElementById('officeSelect'); const original = sel.value; const desired = document.getElementById('officeKey').value.trim();
+      if(!desired) return alert('Enter an office key');
+      if(original && original!==desired){
+        // rename key: move array and delete old
+        CURRENT_TEAMSJSON[desired] = CURRENT_TEAMSJSON[original] || [];
+        delete CURRENT_TEAMSJSON[original];
+      } else if(!original && !CURRENT_TEAMSJSON[desired]){
+        // creating new key from selectedList (which is already in CURRENT_TEAMSJSON when adding)
+        CURRENT_TEAMSJSON[desired] = CURRENT_TEAMSJSON[desired] || [];
+      }
+      renderOfficeSelectors(CURRENT_TEAMSJSON); renderOfficeEditors(CURRENT_TEAMSJSON, CURRENT_NORM); document.getElementById('officeSelect').value = desired; renderSelectedForOffice(desired); updatePreview();
     }
 
     // start
