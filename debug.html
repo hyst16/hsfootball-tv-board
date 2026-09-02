@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>HS Football TV — Debug / Teams Builder</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 16px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr 360px; gap: 12px; align-items: start; }
+    .panel { border: 1px solid #ddd; padding: 12px; border-radius: 6px; background: #fff }
+    h2 { margin: 0 0 8px 0 }
+    .team { display:flex; align-items:center; gap:8px; padding:6px; border-bottom:1px solid #f3f3f3 }
+    .team .name { flex:1 }
+    .badge { padding:3px 8px; font-size:12px; border-radius:999px }
+    .badge.ok { background:#dff0d8; color:#27632a }
+    .badge.warn { background:#fff4d6; color:#7a5900 }
+    .badge.missing { background:#f8d7da; color:#6b0b0b }
+    .controls { display:flex; gap:8px; margin-top:8px }
+    input[type="text"], select { width:100%; padding:6px; box-sizing:border-box }
+    button { padding:6px 8px }
+    pre { background:#f7f7f7; padding:8px; overflow:auto }
+    .small { font-size:13px; color:#555 }
+    .hint { font-size:12px; color:#666 }
+    #classes { margin-bottom:8px }
+    .search { margin-bottom:8px }
+  </style>
+</head>
+<body>
+  <h1>Debug / Teams Builder</h1>
+  <p class="small">This page reads data/football.json (scraper output) and teams.json (your office mapping). Use the builder to pick teams and generate teams.json entries.</p>
+  <div id="meta" class="hint">Loading data...</div>
+  <div class="grid">
+    <div class="panel">
+      <h2>Filters</h2>
+      <div id="classes"></div>
+      <div class="search"><input id="filter" placeholder="Filter teams (name)..." /></div>
+      <div class="panel" style="margin-top:8px; max-height:520px; overflow:auto">
+        <div id="teamList">Loading teams...</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Office builder</h2>
+      <div class="small">Selected teams:</div>
+      <div id="selectedList" style="min-height:60px; padding:6px; border:1px dashed #eee; margin-bottom:8px"></div>
+      <label class="small">Office key (slug):</label>
+      <input id="officeKey" placeholder="mead-office" />
+      <div class="controls">
+        <button id="copyJson">Copy JSON</button>
+        <button id="downloadJson">Download</button>
+        <a id="editOnGitHub" class="small" target="_blank" rel="noopener noreferrer">Edit on GitHub</a>
+      </div>
+      <h3 style="margin-top:12px">Preview</h3>
+      <pre id="preview">{}</pre>
+    </div>
+
+    <div class="panel">
+      <h2>Validate teams.json</h2>
+      <div id="validateList">Loading...</div>
+    </div>
+  </div>
+
+  <script>
+    // Utility: normalize team names for matching
+    function normalize(s){ return (s||"").toLowerCase().replace(/[^a-z0-9\s]/g,'').replace(/\s+/g,' ').trim(); }
+    function slug(s){ return (s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
+    
+    // Levenshtein distance for suggestions
+    function levenshtein(a,b){
+      if(a===b) return 0;
+      var m=a.length,n=b.length; if(m===0) return n; if(n===0) return m;
+      var dp = Array(m+1).fill(null).map(()=>Array(n+1).fill(0));
+      for(let i=0;i<=m;i++) dp[i][0]=i; for(let j=0;j<=n;j++) dp[0][j]=j;
+      for(let i=1;i<=m;i++) for(let j=1;j<=n;j++){
+        const cost = a[i-1]===b[j-1]?0:1;
+        dp[i][j] = Math.min(dp[i-1][j]+1, dp[i][j-1]+1, dp[i-1][j-1]+cost);
+      }
+      return dp[m][n];
+    }
+
+    async function load(){
+      const metaEl = document.getElementById('meta');
+      try{
+        const [fResp, tResp] = await Promise.all([
+          fetch('data/football.json').then(r=>r.ok? r.json(): Promise.reject('no football.json')),
+          fetch('teams.json').then(r=>r.ok? r.json(): {})
+        ]);
+        metaEl.textContent = 'Scrape updated: ' + new Date((fResp.updated||0)*1000).toLocaleString();
+
+        // build teams array: {slug, display, class}
+        const byTeam = fResp.by_team || {};
+        const teams = Object.keys(byTeam).map(k=>{
+          const rec = (byTeam[k] && byTeam[k][0]) || {};
+          return { key:k, display: rec._team_display || rec._team || k, class: rec._class || rec.Class || 'Unknown' };
+        });
+
+        // index by normalized name
+        const normIndex = {};
+        teams.forEach(t=>{ normIndex[normalize(t.display)] = t; });
+
+        // classes
+        const classes = Array.from(new Set(teams.map(t=>t.class).filter(Boolean))).sort();
+        renderClassFilters(classes);
+        renderTeamList(teams, normIndex, tResp);
+        renderValidation(teams, normIndex, tResp);
+        setupBuilder(teams, normIndex, tResp);
+      }catch(err){ metaEl.textContent = 'Error loading data: '+err }
+    }
+
+    function renderClassFilters(classes){
+      const el = document.getElementById('classes');
+      el.innerHTML = '';
+      const select = document.createElement('select'); select.id='classSelect';
+      const allOpt = document.createElement('option'); allOpt.value=''; allOpt.textContent='All classes'; select.appendChild(allOpt);
+      classes.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; select.appendChild(o)});
+      select.addEventListener('change', ()=>filterAndRender());
+      el.appendChild(select);
+    }
+
+    let CURRENT_TEAMS = [];
+    let CURRENT_NORM = {};
+    let CURRENT_TEAMSJSON = {};
+
+    function renderTeamList(teams, normIndex, teamsJson){
+      CURRENT_TEAMS = teams; CURRENT_NORM = normIndex; CURRENT_TEAMSJSON = teamsJson || {};
+      filterAndRender();
+    }
+
+    function filterAndRender(){
+      const q = document.getElementById('filter').value.toLowerCase().trim();
+      const cls = document.getElementById('classSelect').value;
+      const container = document.getElementById('teamList'); container.innerHTML='';
+      const list = CURRENT_TEAMS.filter(t=> (cls? t.class===cls: true) && (q? t.display.toLowerCase().includes(q): true));
+      list.sort((a,b)=> a.display.localeCompare(b.display));
+      if(list.length===0) { container.textContent='No teams'; return }
+      list.forEach(t=>{
+        const row = document.createElement('div'); row.className='team';
+        const cb = document.createElement('input'); cb.type='checkbox'; cb.dataset.name=t.display;
+        cb.addEventListener('change', onSelectChange);
+        const name = document.createElement('div'); name.className='name'; name.textContent = t.display + ' ('+t.class+')';
+        const normalized = normalize(t.display);
+        const badge = document.createElement('div'); badge.className='badge ok'; badge.textContent='Found';
+        // marker if present in teams.json
+        const inTeamsJson = Object.values(CURRENT_TEAMSJSON).some(arr=> arr.map(normalize).includes(normalized));
+        if(!inTeamsJson) badge.className='badge warn', badge.textContent='Not in teams.json';
+        row.appendChild(cb); row.appendChild(name); row.appendChild(badge);
+        container.appendChild(row);
+      });
+    }
+
+    document.getElementById('filter').addEventListener('input', ()=>filterAndRender());
+
+    function onSelectChange(){
+      const selected = Array.from(document.querySelectorAll('#teamList input[type=checkbox]:checked')).map(i=>i.dataset.name);
+      renderSelected(selected);
+    }
+
+    function renderSelected(list){
+      const el = document.getElementById('selectedList'); el.innerHTML='';
+      list.forEach(n=>{ const d=document.createElement('div'); d.textContent=n; el.appendChild(d) });
+      const suggestedKey = list.length? slug(list[0]) : '';
+      const officeKeyEl = document.getElementById('officeKey'); if(!officeKeyEl.value) officeKeyEl.value = suggestedKey + (suggestedKey?'-office':'');
+      updatePreview();
+    }
+
+    function setupBuilder(teams, normIndex, teamsJson){
+      document.getElementById('copyJson').addEventListener('click', ()=>{
+        const payload = buildPayload(); navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+        alert('JSON copied to clipboard')
+      });
+      document.getElementById('downloadJson').addEventListener('click', ()=>{
+        const payload = buildPayload(); const blob = new Blob([JSON.stringify(payload, null,2)], {type:'application/json'});
+        const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='teams.json'; a.click(); URL.revokeObjectURL(url);
+      });
+      const editLink = document.getElementById('editOnGitHub');
+      editLink.href = 'https://github.com/hyst16/hsfootball-tv-board/edit/main/teams.json';
+      document.getElementById('officeKey').addEventListener('input', updatePreview);
+    }
+
+    function buildPayload(){
+      const key = document.getElementById('officeKey').value || 'new-office';
+      const selected = Array.from(document.querySelectorAll('#teamList input[type=checkbox]:checked')).map(i=>i.dataset.name);
+      const payload = Object.assign({}, CURRENT_TEAMSJSON);
+      payload[key] = selected;
+      return payload;
+    }
+
+    function updatePreview(){ document.getElementById('preview').textContent = JSON.stringify(buildPayload(), null, 2); }
+
+    function renderValidation(teams, normIndex, teamsJson){
+      const out = document.getElementById('validateList'); out.innerHTML='';
+      const keys = Object.keys(teamsJson||{}).sort();
+      if(keys.length===0){ out.textContent='No teams.json entries found'; return }
+      keys.forEach(k=>{
+        const arr = teamsJson[k] || [];
+        const div = document.createElement('div'); div.style.borderBottom='1px solid #eee'; div.style.padding='8px 0';
+        const h = document.createElement('div'); h.textContent = k; h.style.fontWeight='600'; div.appendChild(h);
+        arr.forEach(name=>{
+          const n = normalize(name);
+          const found = Object.keys(normIndex).includes(n);
+          const row = document.createElement('div'); row.style.display='flex'; row.style.alignItems='center'; row.style.gap='8px';
+          const nm = document.createElement('div'); nm.textContent = name; nm.className='small'; nm.style.flex='1';
+          const status = document.createElement('div'); status.className='badge ' + (found? 'ok':'missing'); status.textContent = found? 'Found':'Missing';
+          row.appendChild(nm); row.appendChild(status);
+          if(!found){
+            // suggest closest
+            const candidates = Object.keys(normIndex);
+            let best=null, bestD=1e9; candidates.forEach(c=>{ const d = levenshtein(n,c); if(d<bestD){ bestD=d; best=c } });
+            const suggestion = document.createElement('div'); suggestion.className='hint'; suggestion.textContent = 'Suggestion: ' + (best? normIndex[best].display : 'N/A');
+            row.appendChild(suggestion);
+          }
+          div.appendChild(row);
+        });
+        out.appendChild(div);
+      });
+    }
+
+    // start
+    load();
+  </script>
+</body>
+</html>
