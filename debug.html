@@ -25,6 +25,7 @@
     .search { margin-bottom:8px }
     .office-card { margin-bottom:8px; border:1px solid #eee; padding:8px; border-radius:6px }
     .office-header { display:flex; justify-content:space-between; align-items:center }
+    .danger { background:#f8d7da; color:#6b0b0b; padding:4px 6px; border-radius:4px }
   </style>
 </head>
 <body>
@@ -54,8 +55,14 @@
         <button id="applyChanges">Apply changes (update preview)</button>
         <button id="copyJson">Copy JSON</button>
         <button id="downloadJson">Download</button>
+        <button id="deleteOffice">Delete selected office</button>
         <a id="editOnGitHub" class="small" target="_blank" rel="noopener noreferrer">Edit on GitHub</a>
       </div>
+      <div class="hint" style="margin-top:6px">How to save edits (no auth required):<br>
+1) Click "Apply changes" to update the preview.<br>
+2) Click "Copy JSON" (or Download).<br>
+3) Click "Edit on GitHub" to open teams.json in the repo, paste the updated JSON, and commit — that saves your edits to the main branch. <br>
+To delete an entire office key: select it from the dropdown and click "Delete selected office". Changes are local to this page until you paste/commit on GitHub.</div>
       <h3 style="margin-top:12px">Preview</h3>
       <pre id="preview">{}</pre>
     </div>
@@ -67,10 +74,18 @@
   </div>
 
   <script>
+    // Config
+    const REPO_OWNER = 'hyst16';
+    const REPO_NAME = 'hsfootball-tv-board';
+    const TARGET_BRANCH = 'main';
+
     // Utility: normalize team names for matching
     function normalize(s){ return (s||"").toLowerCase().replace(/[^a-z0-9\s]/g,'').replace(/\s+/g,' ').trim(); }
     function slug(s){ return (s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
-  
+
+    function toBase64(s){ return btoa(unescape(encodeURIComponent(s))); }
+    function fromBase64(s){ return decodeURIComponent(escape(atob(s))); }
+
     // Levenshtein distance for suggestions
     function levenshtein(a,b){
       if(a===b) return 0;
@@ -169,9 +184,22 @@
         const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='teams.json'; a.click(); URL.revokeObjectURL(url);
       });
       const editLink = document.getElementById('editOnGitHub');
-      editLink.href = 'https://github.com/hyst16/hsfootball-tv-board/edit/main/teams.json';
+      editLink.href = `https://github.com/${REPO_OWNER}/${REPO_NAME}/edit/${TARGET_BRANCH}/teams.json`;
       document.getElementById('officeKey').addEventListener('input', ()=>{ document.getElementById('officeSelect').value=''; });
       document.getElementById('applyChanges').addEventListener('click', ()=>{ applyOfficeKeyChange(); });
+
+      // Delete office button handler (removes selected office from preview only)
+      document.getElementById('deleteOffice').addEventListener('click', ()=>{
+        const sel = document.getElementById('officeSelect'); const key = sel.value;
+        if(!key) return alert('Select an existing office to delete');
+        if(!confirm(`Delete office "${key}" and remove it from the preview? This change will be applied locally; paste and commit the JSON on GitHub to persist.`)) return;
+        delete CURRENT_TEAMSJSON[key];
+        renderOfficeSelectors(CURRENT_TEAMSJSON); renderOfficeEditors(CURRENT_TEAMSJSON, CURRENT_NORM);
+        document.getElementById('officeSelect').value = '';
+        document.getElementById('officeKey').value = '';
+        renderSelectedForOffice('');
+        updatePreview();
+      });
     }
 
     function buildPayload(){
@@ -265,6 +293,86 @@
         CURRENT_TEAMSJSON[desired] = CURRENT_TEAMSJSON[desired] || [];
       }
       renderOfficeSelectors(CURRENT_TEAMSJSON); renderOfficeEditors(CURRENT_TEAMSJSON, CURRENT_NORM); document.getElementById('officeSelect').value = desired; renderSelectedForOffice(desired); updatePreview();
+    }
+
+    function deleteSelectedOffice(){
+      const sel = document.getElementById('officeSelect'); const key = sel.value;
+      if(!key) return alert('Select an existing office to delete');
+      if(!confirm(`Delete office "${key}" and remove it from the preview? This change will be applied locally; paste and commit the JSON on GitHub to persist.`)) return;
+      delete CURRENT_TEAMSJSON[key];
+      renderOfficeSelectors(CURRENT_TEAMSJSON); renderOfficeEditors(CURRENT_TEAMSJSON, CURRENT_NORM);
+      document.getElementById('officeSelect').value = '';
+      document.getElementById('officeKey').value = '';
+      renderSelectedForOffice('');
+      updatePreview();
+    }
+
+    // GitHub API helpers (used when committing)
+    async function ghGet(path, token){
+      const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${path}?ref=${TARGET_BRANCH}`;
+      const r = await fetch(url, { headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json' } });
+      if(!r.ok) throw new Error('GitHub GET failed: '+ r.status + ' ' + await r.text());
+      return r.json();
+    }
+
+    async function ghPut(path, token, message, contentBase64, sha){
+      const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${path}`;
+      const body = { message, content: contentBase64, branch: TARGET_BRANCH };
+      if(sha) body.sha = sha;
+      const r = await fetch(url, { method:'PUT', headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json', 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+      if(!r.ok) throw new Error('GitHub PUT failed: '+ r.status + ' ' + await r.text());
+      return r.json();
+    }
+
+    function generateReadmeOfficeSection(offices){
+      // offices: object mapping key -> array of team names
+      const lines = [];
+      lines.push('\n<!-- offices-start -->');
+      lines.push('## Office URL mappings');
+      lines.push('\nUse these URLs to point each TV (example syntax):');
+      lines.push('');
+      Object.keys(offices).sort().forEach(key=>{
+        lines.push(`- ${key}: https://${REPO_OWNER}.github.io/${REPO_NAME}/?office=${key}`);
+        offices[key].forEach(t=>{ lines.push(`  - ${t}`); });
+        lines.push('');
+      });
+      lines.push('<!-- offices-end -->\n');
+      return lines.join('\n');
+    }
+
+    async function commitTeamsJsonAndReadme(token){
+      // 1) Prepare teams.json content
+      const teamsContent = JSON.stringify(CURRENT_TEAMSJSON, null, 2) + '\n';
+      // 2) Commit teams.json
+      const teamsGet = await ghGet('teams.json', token);
+      const teamsSha = teamsGet.sha;
+      await ghPut('teams.json', token, 'Update teams.json (from debug page)', toBase64(teamsContent), teamsSha);
+
+      // 3) Update README.md: fetch, insert/replace markers
+      let readmeGet = null;
+      try{ readmeGet = await ghGet('README.md', token); }catch(e){
+        // try README.md lowercase or README
+        try{ readmeGet = await ghGet('README.MD', token); }catch(e2){ throw new Error('Failed to fetch README: ' + e2.message); }
+      }
+      const readmeSha = readmeGet.sha;
+      const readmeText = fromBase64(readmeGet.content);
+      const startMarker = '<!-- offices-start -->';
+      const endMarker = '<!-- offices-end -->';
+      const newSection = generateReadmeOfficeSection(CURRENT_TEAMSJSON);
+      let newReadme = '';
+      if(readmeText.includes(startMarker) && readmeText.includes(endMarker)){
+        const start = readmeText.indexOf(startMarker);
+        const end = readmeText.indexOf(endMarker) + endMarker.length;
+        newReadme = readmeText.slice(0, start) + newSection + readmeText.slice(end);
+      } else {
+        newReadme = readmeText + '\n\n' + newSection;
+      }
+      await ghPut('README.md', token, 'Update README: office mappings (from debug page)', toBase64(newReadme), readmeSha);
+
+      alert('Commit successful: teams.json and README updated on ' + TARGET_BRANCH);
+      // refresh UI: reload teams.json from repo
+      const refreshed = await fetch('teams.json').then(r=>r.ok? r.json(): {});
+      CURRENT_TEAMSJSON = refreshed; renderOfficeSelectors(CURRENT_TEAMSJSON); renderOfficeEditors(CURRENT_TEAMSJSON, CURRENT_NORM); updatePreview();
     }
 
     // start
