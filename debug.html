@@ -55,10 +55,14 @@
         <button id="applyChanges">Apply changes (update preview)</button>
         <button id="copyJson">Copy JSON</button>
         <button id="downloadJson">Download</button>
-        <button id="commitBtn">Commit to GitHub</button>
+        <button id="deleteOffice">Delete selected office</button>
         <a id="editOnGitHub" class="small" target="_blank" rel="noopener noreferrer">Edit on GitHub</a>
       </div>
-      <div class="hint" style="margin-top:6px">Commit notes: committing directly to <strong>main</strong> will overwrite teams.json and update README. You will be prompted for a Personal Access Token (repo scope) when committing. Use a token you trust and revoke it after use if desired.</div>
+      <div class="hint" style="margin-top:6px">How to save edits (no auth required):<br>
+1) Click "Apply changes" to update the preview.<br>
+2) Click "Copy JSON" (or Download).<br>
+3) Click "Edit on GitHub" to open teams.json in the repo, paste the updated JSON, and commit — that saves your edits to the main branch. <br>
+To delete an entire office key: select it from the dropdown and click "Delete selected office". Changes are local to this page until you paste/commit on GitHub.</div>
       <h3 style="margin-top:12px">Preview</h3>
       <pre id="preview">{}</pre>
     </div>
@@ -184,13 +188,17 @@
       document.getElementById('officeKey').addEventListener('input', ()=>{ document.getElementById('officeSelect').value=''; });
       document.getElementById('applyChanges').addEventListener('click', ()=>{ applyOfficeKeyChange(); });
 
-      document.getElementById('commitBtn').addEventListener('click', async ()=>{
-        if(!confirm('Commit the current teams.json and update README on the main branch? This will commit directly to main.')) return;
-        try{
-          const token = prompt('Paste a Personal Access Token (repo scope). It will only be used from your browser session and is not stored.');
-          if(!token) return alert('Commit cancelled — no token provided');
-          await commitTeamsJsonAndReadme(token);
-        }catch(err){ alert('Commit failed: '+err); console.error(err); }
+      // Delete office button handler (removes selected office from preview only)
+      document.getElementById('deleteOffice').addEventListener('click', ()=>{
+        const sel = document.getElementById('officeSelect'); const key = sel.value;
+        if(!key) return alert('Select an existing office to delete');
+        if(!confirm(`Delete office "${key}" and remove it from the preview? This change will be applied locally; paste and commit the JSON on GitHub to persist.`)) return;
+        delete CURRENT_TEAMSJSON[key];
+        renderOfficeSelectors(CURRENT_TEAMSJSON); renderOfficeEditors(CURRENT_TEAMSJSON, CURRENT_NORM);
+        document.getElementById('officeSelect').value = '';
+        document.getElementById('officeKey').value = '';
+        renderSelectedForOffice('');
+        updatePreview();
       });
     }
 
@@ -285,6 +293,18 @@
         CURRENT_TEAMSJSON[desired] = CURRENT_TEAMSJSON[desired] || [];
       }
       renderOfficeSelectors(CURRENT_TEAMSJSON); renderOfficeEditors(CURRENT_TEAMSJSON, CURRENT_NORM); document.getElementById('officeSelect').value = desired; renderSelectedForOffice(desired); updatePreview();
+    }
+
+    function deleteSelectedOffice(){
+      const sel = document.getElementById('officeSelect'); const key = sel.value;
+      if(!key) return alert('Select an existing office to delete');
+      if(!confirm(`Delete office "${key}" and remove it from the preview? This change will be applied locally; paste and commit the JSON on GitHub to persist.`)) return;
+      delete CURRENT_TEAMSJSON[key];
+      renderOfficeSelectors(CURRENT_TEAMSJSON); renderOfficeEditors(CURRENT_TEAMSJSON, CURRENT_NORM);
+      document.getElementById('officeSelect').value = '';
+      document.getElementById('officeKey').value = '';
+      renderSelectedForOffice('');
+      updatePreview();
     }
 
     // GitHub API helpers (used when committing)
