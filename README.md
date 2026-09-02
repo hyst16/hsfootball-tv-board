@@ -1,9 +1,12 @@
 Office Teams (How to choose what each TV shows)
 
-This site lets you show different schools on different TVs by passing an office key in the URL:
+This site lets you show different schools on different TVs by passing an office key in the URL.
 
-https://<your-username>.github.io/hsfootball-tv-board/?office=<office-key>
+Full URL format:
+https://<github-user-or-org>.github.io/hsfootball-tv-board/?office=<office-key>
 
+Example (for the hyst16 org):
+https://hyst16.github.io/hsfootball-tv-board/?office=mead-office
 
 You control which schools appear for each office by editing one file: teams.json.
 
@@ -66,9 +69,16 @@ The table shows Team text (from NSAA) — copy that text (without the (0-0) part
 
 3) Put each TV on the right URL
 
-Once teams.json is saved, point each TV to:
+Once teams.json is saved, point each TV to the full GitHub Pages URL:
 
-https://<your-username>.github.io/hsfootball-tv-board/?office=<office-key>
+https://<github-user-or-org>.github.io/hsfootball-tv-board/?office=<office-key>
+
+Examples:
+Mead TV:
+https://<github-user-or-org>.github.io/hsfootball-tv-board/?office=mead-office
+
+Bellwood TV:
+https://<github-user-or-org>.github.io/hsfootball-tv-board/?office=bellwood-office
 
 
 Examples:
