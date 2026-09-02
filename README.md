@@ -1,131 +1,71 @@
-Office Teams (How to choose what each TV shows)
+﻿# HS Football TV — Office URL Guide
 
-This site lets you show different schools on different TVs by passing an office key in the URL.
+This repository powers the HS Football TV boards. Use the Office URL feature to show a curated list of teams on each TV by visiting a GitHub Pages URL that includes an office key.
 
-Full URL format:
-https://<github-user-or-org>.github.io/hsfootball-tv-board/?office=<office-key>
+Quick start
 
-Example (for the hyst16 org):
-https://hyst16.github.io/hsfootball-tv-board/?office=mead-office
+- Debug / Teams Builder (pick teams, preview JSON):
+  https://hyst16.github.io/hsfootball-tv-board/debug.html
 
-You control which schools appear for each office by editing one file: teams.json.
+Full URL format (use your org or username in place of `hyst16`):
 
-1) Edit teams.json
+https://hyst16.github.io/hsfootball-tv-board/?office=<office-key>
 
-Open your repo on GitHub.
+Example (clickable):
 
-Click teams.json → click the ✏️ pencil to edit.
+- [Mead TV — mead-office](https://hyst16.github.io/hsfootball-tv-board/?office=mead-office)
 
-The file is a simple map from office key → list of team names:
+Office URL mappings and teams
 
-{
-  "mead-office": ["Wahoo", "Wahoo Neumann", "Yutan-Mead"],
-  "bellwood-office": ["David City", "Aquinas Catholic"],
-  "lincoln-office": ["Lincoln Southeast", "Lincoln Southwest", "Lincoln East"]
-}
+Below is the current list of office keys and the teams they contain. These are updated from `teams.json`.
 
+<!-- offices-start -->
 
-The left side ("mead-office", "bellwood-office", etc.) can be any short key you want.
+## Office URL mappings
 
-The right side is a list of team names exactly how NSAA captions them (see Step 2 below).
+Use the links to open each office directly:
 
-Click Commit changes.
+- [mead-office](https://hyst16.github.io/hsfootball-tv-board/?office=mead-office)
+  - Wahoo
+  - Bishop Neumann
+  - Mead
+  - Yutan
 
-2) Use the exact team name NSAA uses
+- [northbend-office](https://hyst16.github.io/hsfootball-tv-board/?office=northbend-office)
+  - North Bend Central
+  - Arlington
+  - Logan View/Scribner-Snyder (LVSS)
+  - Schuyler
 
-On the NSAA class pages, the team name is in the table caption and often includes a record, e.g.:
+- [tarnov-office](https://hyst16.github.io/hsfootball-tv-board/?office=tarnov-office)
+  - Columbus
+  - Columbus Lakeview
+  - Scotus Central Catholic
+  - Humphrey-Lindsay
+  - Archangels Catholic
+  - Twin River
 
-<b>Wahoo (0-0)</b>
-<b>Wahoo Neumann (0-0)</b>
-<b>Yutan-Mead (0-0)</b>
+- [yanka-office](https://hyst16.github.io/hsfootball-tv-board/?office=yanka-office)
+  - Aquinas Catholic
+  - David City
+  - East Butler
 
+<!-- offices-end -->
 
-For teams.json, use the name part only (don’t include the record):
+How to edit teams (simple)
 
-✅ Wahoo
+1) Use the Debug / Teams Builder page to select teams and build a `teams.json` snippet.
+2) Click "Copy JSON" and then click the **Edit on GitHub** link to open `teams.json` in the web editor.
+3) Paste the updated JSON and commit the change to the `main` branch.
 
-✅ Wahoo Neumann
+Notes
 
-✅ Yutan-Mead
+- Matching is case-insensitive and ignores punctuation; use the NSAA team text (no record) when possible.
+- The site refreshes teams automatically when `teams.json` changes.
+- If you accidentally create an office key, use the Debug page's **Delete selected office** button and then paste/commit the updated JSON to GitHub.
 
-❌ Wahoo (0-0) (don’t include the record)
+Troubleshooting
 
-Tip: Some schools are listed differently than you might say them:
+- 404 for debug page: wait a minute and hard refresh (Ctrl+F5). Ensure the site is published from the `main` branch.
+- If a team shows as "Missing" in the Debug UI, use the suggested replacement or pick the correct team from the list and update `teams.json`.
 
-“Bishop Neumann” is typically listed as “Wahoo Neumann”.
-
-“Mead” appears in a co-op as “Yutan-Mead”.
-
-Easiest way to find the correct names
-
-Open the helper page (already in the repo):
-
-https://<your-username>.github.io/hsfootball-tv-board/debug.html
-
-
-Type part of a name (e.g., wahoo, neumann, mead) in the filter box.
-
-The table shows Team text (from NSAA) — copy that text (without the (0-0) part) into teams.json.
-
-3) Put each TV on the right URL
-
-Once teams.json is saved, point each TV to the full GitHub Pages URL:
-
-https://<github-user-or-org>.github.io/hsfootball-tv-board/?office=<office-key>
-
-Examples:
-Mead TV:
-https://<github-user-or-org>.github.io/hsfootball-tv-board/?office=mead-office
-
-Bellwood TV:
-https://<github-user-or-org>.github.io/hsfootball-tv-board/?office=bellwood-office
-
-
-Examples:
-
-Mead TV:
-...?office=mead-office
-
-Bellwood TV:
-...?office=bellwood-office
-
-The page auto-refreshes every 10 minutes.
-
-4) How/when does data update?
-
-A GitHub Action scrapes NSAA once a day and writes data/football.json.
-
-You can run it anytime: Actions → “Scrape NSAA -> Build JSON” → Run workflow.
-
-The updated time shows in the page footer.
-
-Don’t edit data/football.json by hand—each run overwrites it.
-
-5) Troubleshooting
-
-The card says “No match found yet.”
-
-The name in teams.json doesn’t match NSAA’s caption.
-
-Open debug.html, search for the school, and copy the Team text (without the record) into teams.json.
-
-Footer says “(no data yet)”.
-
-The daily scraper hasn’t run or failed.
-
-Go to Actions → Run workflow. After it finishes, refresh the page.
-
-I want to add/remove teams later.
-
-Edit teams.json anytime. Changes show immediately (no scraper run needed).
-
-FAQ
-
-Do capitalization, spaces, or dashes matter?
-No—matching is case-insensitive and ignores punctuation. But the words must match NSAA’s naming (e.g., use “Wahoo Neumann”, not “Bishop Neumann”).
-
-Can I have many offices?
-Yes. Add more keys to teams.json, then use ?office=<that-key> in the URL.
-
-Can I rotate pages (e.g., 6 teams split across 2 screens)?
-Easiest is to make two office keys (mead-1, mead-2) with different team lists and put each URL on a separate TV. If you’d like auto-rotation on a single screen, we can add that—just ask.
